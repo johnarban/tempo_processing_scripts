@@ -1,2 +1,16 @@
 # ignore all subfolders
 */*
+*
+!.gitignore
+!colormap.py
+!compress_and_diff.sh
+!download_template.sh
+!get_new_tempo_data.py
+!get_tempo_data_for_day.py
+!get_tempo_data_utils.py
+!merge.sh
+!process_data.py
+!subset_all_folders.sh
+!subset_files.sh
+!subset_tempo_data.py
+!tempo_process_funcs.py

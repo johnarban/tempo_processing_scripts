@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import logging
+import yaml
 
 def setup_logging(debug: bool) -> None:
     """
@@ -30,24 +31,42 @@ def ensure_directory(path: Path | str, skip = False):
         path.mkdir()
     logging.debug(f"Ensured directory: {path}")
 
-def run_command(command, dry_run=False, use_subprocess=False):
+def check_cp_command(command):
+    if command[0] == 'cp':
+        source_file = command[1]
+        destination_dir = os.path.dirname(command[2])
+        
+        if not os.path.exists(source_file):
+            logging.error(f"Source file does not exist: {source_file}")
+            sys.exit(1)
+        
+        if not os.path.exists(destination_dir):
+            logging.error(f"Destination directory does not exist: {destination_dir}")
+            sys.exit(1)
+
+def run_command(command, dry_run=False, run_anyway=False, cwd: Path | str ='.'):
     if dry_run:
-        if use_subprocess:
-            logging.info('DRY RUN: ' + ' '.join(command))
-        else:
-            logging.info('DRY RUN: ' + command)
-    else:
-        if use_subprocess:
-            # print(' '.join(command)) get the command as a string
-            logging.info(subprocess.list2cmdline(command))
-            subprocess.run(command)
-        else:
-            logging.info(command)
-            os.system(command)
+        logging.info(f'DRY RUN: {" ".join(command)} (cwd: {cwd or "."})')
+    if (not dry_run) or run_anyway:
+        logging.info(f'Running: {" ".join(command)} (cwd: {cwd or "."})')
+        
+        check_cp_command(command)
+        
+        try:
+            subprocess.run(command, cwd=cwd, check=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error running command: {e}")
+            subprocess.run(['pwd'], cwd=cwd, check=True)
+            sys.exit(1)
 
 def setup_data_folder(data_dir = None):
     if data_dir:
-        folder = Path(f'./{data_dir}')
+        # path is not absolute, assume is is relative
+        if not Path(data_dir).is_absolute():
+            folder = Path(f'./{data_dir}')
+
+        else:
+            folder = Path(data_dir)
         folder.mkdir(exist_ok=True)
     else:
         today = datetime.now().strftime("%b_%d").lower()
@@ -73,8 +92,8 @@ def create_download_list(granule_urls, download_list, data_dir):
     logging.debug(f"Download list created: {download_list}")
 
 def download_data(download_list, data_dir):
-    run_command(f'cp {download_script_template} {download_script}', args.dry_run) 
-    run_command(f'cd {download_script.parent} && sh {download_script.name}', args.dry_run)
+    run_command(['cp', str(download_script_template), str(download_script)], dry_run = args.dry_run)
+    run_command(['sh', str(download_script.name)], cwd=download_script.parent, dry_run = args.dry_run)
 
 
 
@@ -83,6 +102,9 @@ def download_data(download_list, data_dir):
 import argparse
 # get arguments
 parser = argparse.ArgumentParser(description='Download new TEMPO data')
+parser.add_argument('--config', type=str, help='Path to the YAML configuration file', default='default_config.yaml')
+# root directory
+parser.add_argument('--root-dir', type=str, help='Root directory for all paths')
 # --skip-download
 parser.add_argument('--skip-download', action='store_true', help='Skip the download step')
 # if there is a --skip-download there should be a --data-dir
@@ -113,10 +135,48 @@ parser.add_argument('--merge-dir', type=str, help="Top level directory to place 
 parser.add_argument('--merge-only', action="store_true", help="set this to only perform file merges")
 # add delete after merge option
 parser.add_argument('--delete-after-merge', action="store_true", help="Delete images in orginal directory afer merge")
+# add output name option
+parser.add_argument('--output-name', type=str, help='Output name for images and text files', default=None)
 
 args = parser.parse_args()
 
+# Load configuration from YAML file
+with open(args.config, 'r') as file:
+    config = yaml.safe_load(file)
+
+# Override YAML config with command-line arguments if provided
+for key, value in config.items():
+    if getattr(args, key, None) is None:
+        setattr(args, key, value)
+
 setup_logging(args.verbose)
+
+# Print out the final configuration
+if args.verbose:
+    print("Configuration:")
+    for key, value in vars(args).items():
+        print(f"{key}: {value}")
+
+# Ensure root directory is absolute
+root_dir = Path(args.root_dir).resolve()
+print(f"root_dir: {root_dir}")
+
+# Ensure all paths are absolute
+def make_absolute(path):
+    path = Path(path).expanduser()
+    return root_dir / path if not Path(path).is_absolute() else Path(path)
+
+from typing import cast
+args.data_dir = make_absolute(args.data_dir) if args.data_dir else None
+args.merge_dir = make_absolute(args.merge_dir)
+args.output_name = make_absolute(args.output_name) if args.output_name else None
+
+# Print out the directories
+print(f"Data directory: {args.data_dir}")
+print(f"Merge directory: {args.merge_dir}")
+print(f"Output name: {args.output_name}")
+# Print out the directories
+
 
 skip_download = args.skip_download or args.merge_only
 data_dir = args.data_dir
@@ -136,21 +196,22 @@ run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 folder = setup_data_folder(data_dir)
 
 # Setup output paths
+output_name = args.output_name if args.output_name else folder.name
 download_list = folder / 'download_list.txt'
 download_script_template = Path('download_template.sh')
 download_script = folder / 'download_template.sh'
 
-image_directory = Path(f'./{folder.name}/images')
-resized_image_directory = Path(f'./{folder.name}/images/resized_images')
+image_directory = make_absolute(f'{output_name}/images')
+resized_image_directory = make_absolute(f'{output_name}/images/resized_images')
 ensure_directory(image_directory, args.dry_run)
 ensure_directory(resized_image_directory, args.dry_run)
 
-cloud_image_directory = Path(f'./{folder.name}/cloud_images')
-resized_cloud_image_directory = Path(f'./{folder.name}/cloud_images/resized_images')
+cloud_image_directory = make_absolute(f'{output_name}/cloud_images')
+resized_cloud_image_directory = make_absolute(f'{output_name}/cloud_images/resized_images')
 ensure_directory(cloud_image_directory, args.dry_run)
 ensure_directory(resized_cloud_image_directory, args.dry_run)
 
-merge_directory = Path(args.merge_dir)
+merge_directory = args.merge_dir
 image_merge_directory = merge_directory / 'released' / 'images'
 cloud_merge_directory = merge_directory / 'clouds' / 'images'
 
@@ -181,15 +242,16 @@ if not skip_download:
 # Check that the data directory is not empty
 nc_files = list(folder.glob('*.nc'))
 subset_nc_files = list(folder.glob('subsetted_netcdf/*.nc'))
-if not args.dry_run and not nc_files and (not args.use_subset or not subset_nc_files):
+doesnt_need_data = args.merge_only or args.text_files_only or args.use_subset or args.dry_run
+if not doesnt_need_data and not nc_files and (not args.use_subset or not subset_nc_files):
     logging.info("No new data downloaded")
     exit(0)
 
 
 if not args.merge_only:
-    process_args = ['-d', f'./{folder.name}/subsetted_netcdf' if args.use_subset else f'./{folder.name}', 
-                    '-o', f'./{folder.name}/images', 
-                    '--cloud-dir', f'./{folder.name}/cloud_images',
+    process_args = ['-d', str(folder / 'subsetted_netcdf') if args.use_subset else str(folder), 
+                    '-o', str(image_directory), 
+                    '--cloud-dir', str(cloud_image_directory),
                     '-p', '*.nc']
     # add --do-clouds if --skip-clouds is not set
     process_args += ['--do-clouds'] if not args.skip_clouds else []
@@ -202,38 +264,38 @@ if not args.merge_only:
     # add --text-files-only if --text-files-only is set
     process_args += ['--text-files-only'] if args.text_files_only else []
     # set name to folder.name if name is not set
-    process_args += ['--name', folder.name] if args.name is None else ['--name', args.name]
+    process_args += ['--name', output_name] if args.name is None else ['--name', args.name]
     process_args += ['--debug'] if (args.verbose or args.dry_run) else []
-    run_command(['./process_data.py'] + process_args, use_subprocess=True, dry_run=args.dry_run)
+    run_command(['./process_data.py'] + process_args, dry_run=args.dry_run, run_anyway=True)
 
 
 
 # Compress & Merge NO2 Data
 if not args.text_files_only:
-    run_command(f'cp compress_and_diff.sh {image_directory}', args.dry_run)
-    run_command(f'cp compress_and_diff.sh {resized_image_directory}', args.dry_run)
+    run_command(['cp', 'compress_and_diff.sh', str(image_directory)], args.dry_run)
+    run_command(['cp', 'compress_and_diff.sh', str(resized_image_directory)], args.dry_run)
 
-    run_command(f'cd {image_directory} && sh compress_and_diff.sh', args.dry_run)
-    run_command(f'cd {resized_image_directory} && sh compress_and_diff.sh', args.dry_run)
+    run_command(['sh', 'compress_and_diff.sh'], cwd=image_directory, dry_run=args.dry_run)
+    run_command(['sh', 'compress_and_diff.sh'], cwd=resized_image_directory, dry_run=args.dry_run)
 
 # run_command(f'sh merge.sh {folder.name}', args.dry_run)
-run_command(f"sh merge.sh -s {image_directory}/ -d {image_merge_directory}")
+run_command(['sh', 'merge.sh', '-s', str(image_directory) +'/', '-d', str(image_merge_directory)])
 
 # Compress & Merge Cloud Data
 if not args.skip_clouds:
     if not args.text_files_only:
-        run_command(f'cp compress_and_diff.sh {cloud_image_directory}', args.dry_run)
-        run_command(f'cd {cloud_image_directory} && sh compress_and_diff.sh', args.dry_run)
+        run_command(['cp', 'compress_and_diff.sh', str(cloud_image_directory)], args.dry_run)
+        run_command(['sh', 'compress_and_diff.sh'], cwd=cloud_image_directory, dry_run=args.dry_run)
 
-        run_command(f'cp compress_and_diff.sh {resized_cloud_image_directory}', args.dry_run)
-        run_command(f'cd {resized_cloud_image_directory} && sh compress_and_diff.sh', args.dry_run)
+        run_command(['cp', 'compress_and_diff.sh', str(resized_cloud_image_directory)], args.dry_run)
+        run_command(['sh', 'compress_and_diff.sh'], cwd=resized_cloud_image_directory, dry_run=args.dry_run)
 
     # run_command(f"sh merge_clouds.sh {folder.name}", args.dry_run)
-    run_command(f"sh merge.sh -s {cloud_image_directory}/ -d {cloud_merge_directory} {'-t' if args.dry_run else ''} {'-x' if args.delete_after_merge else ''}")
+    run_command(['sh', 'merge.sh', '-s', str(cloud_image_directory)+'/', '-d', str(cloud_merge_directory), '-t' if args.dry_run else '', '-x' if args.delete_after_merge else ''])
 
 # subset the data
 if (not args.skip_subset) and (not args.use_subset) and (not args.text_files_only):
-    run_command(f'sh subset_files.sh {folder.name}', args.dry_run)
+    run_command(['sh', 'subset_files.sh', folder.name], args.dry_run)
 
 if args.dry_run:
     import shutil

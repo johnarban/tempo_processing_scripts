@@ -14,3 +14,4 @@
 !subset_files.sh
 !subset_tempo_data.py
 !tempo_process_funcs.py
+!default_config.yaml

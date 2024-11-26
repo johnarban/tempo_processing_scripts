@@ -51,10 +51,10 @@ check_dir_exists "$dest"
 # if cp -R does not work, then find all files in src and run cp that file to dest
 # gcp -R "$src/"* "$dest"
 if [ $dryrun = false ]; then
-    rsync -av $src $dest
+    rsync -av "$src" "$dest"
     echo "merged"
 else
-    echo "rsync -av $src $dest"
+    echo "rsync -av \"$src\" \"$dest\""
     echo "dry run"
 fi
 

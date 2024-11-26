@@ -1,0 +1,17 @@
+root_dir: "./"
+skip_download: false
+data_dir: null
+dry_run: false
+verbose: false
+skip_subset: false
+use_subset: false
+skip_clouds: false
+no_reproject: false
+one_file: false
+reprojection_method: average
+text_files_only: false
+name: null
+merge_dir: "~/github/tempo-data-holdings"
+merge_only: false
+delete_after_merge: false
+output_name: null

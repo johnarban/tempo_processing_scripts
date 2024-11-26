@@ -200,11 +200,6 @@ def main() -> None:
     
     if args.name is None:
         args.name = directory.resolve().name
-    
-    if len(input_files) == 0:
-        logging.error(f"No files found in {directory} with pattern {args.input}")
-        if not args.dry_run:
-            sys.exit(1)
 
     logging.info(
         f"""
@@ -217,6 +212,11 @@ def main() -> None:
         Reprojection method: {args.method}.
         """
     )
+    
+    if len(input_files) == 0:
+        logging.error(f"No files found in {directory} with pattern {args.input}")
+        if not args.dry_run:
+            sys.exit(1)
     
     if args.dry_run:
         logging.info("Dry run: Skipping actual processing steps.")

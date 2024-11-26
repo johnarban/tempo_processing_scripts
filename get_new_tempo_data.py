@@ -137,6 +137,9 @@ parser.add_argument('--merge-only', action="store_true", help="set this to only 
 parser.add_argument('--delete-after-merge', action="store_true", help="Delete images in orginal directory afer merge")
 # add output name option
 parser.add_argument('--output-name', type=str, help='Output name for images and text files', default=None)
+# add date range options
+parser.add_argument('--start-date', type=str, help='Start date for the data download (format: YYYY-MM-DD)')
+parser.add_argument('--end-date', type=str, help='End date for the data download (format: YYYY-MM-DD)')
 
 args = parser.parse_args()
 
@@ -217,8 +220,18 @@ cloud_merge_directory = merge_directory / 'clouds' / 'images'
 
 
 if not skip_download:
-    start_date, end_date = get_date_limits()
-    granule_urls = search_for_granules('C2930763263-LARC_CLOUD', start_date, end_date, args.verbose, dry_run=args.dry_run)
+    # Determine the date range for the data download
+    if args.start_date and args.end_date:
+        try:
+            start_date = datetime.strptime(args.start_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            end_date = datetime.strptime(args.end_date, '%Y-%m-%d').replace(tzinfo=timezone.utc) # + dt.timedelta(days=1)
+            last_time = None
+        except ValueError:
+            parser.error("Date format should be YYYY-MM-DD")
+            sys.exit(1)
+    else:
+        start_date, end_date, last_downloaded_time = get_date_limits()
+    granule_urls = search_for_granules('C2930763263-LARC_CLOUD', start_date, end_date, last_downloaded_time, args.verbose, dry_run=args.dry_run)
     
     
     if len(granule_urls) == 0:

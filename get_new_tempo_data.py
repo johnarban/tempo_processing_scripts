@@ -7,6 +7,14 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import logging
+
+def setup_logging(debug: bool) -> None:
+    """
+    Set up logging configuration.
+    """
+    level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def ensure_directory(path: Path | str, skip = False):
     if skip:
@@ -20,20 +28,21 @@ def ensure_directory(path: Path | str, skip = False):
         path.mkdir()
     elif not path.exists():
         path.mkdir()
+    logging.debug(f"Ensured directory: {path}")
 
 def run_command(command, dry_run=False, use_subprocess=False):
     if dry_run:
         if use_subprocess:
-            print('DRY RUN: ', ' '.join(command))
+            logging.info('DRY RUN: ' + ' '.join(command))
         else:
-            print('DRY RUN: ', command)
+            logging.info('DRY RUN: ' + command)
     else:
         if use_subprocess:
             # print(' '.join(command)) get the command as a string
-            print(subprocess.list2cmdline(command))
+            logging.info(subprocess.list2cmdline(command))
             subprocess.run(command)
         else:
-            print(command)
+            logging.info(command)
             os.system(command)
 
 def setup_data_folder(data_dir = None):
@@ -48,6 +57,7 @@ def setup_data_folder(data_dir = None):
         while folder.exists():
             folder = Path(f'./{today}{next(aToZ)}')
         folder.mkdir(exist_ok=False)
+    logging.debug(f"Data folder set up: {folder}")
     return folder
 
 def create_download_list(granule_urls, download_list, data_dir):
@@ -57,9 +67,10 @@ def create_download_list(granule_urls, download_list, data_dir):
             filename = url.split('/')[-1]
             exists = os.path.exists(f'{data_dir}/{filename}') or os.path.exists(f'{data_dir}/subsetted_netcdf/{filename}')
             if exists:
-                print(f"Skipping {filename}, already in {data_dir}")
+                logging.info(f"Skipping {filename}, already in {data_dir}")
                 continue
             f.write(url + '\n')
+    logging.debug(f"Download list created: {download_list}")
 
 def download_data(download_list, data_dir):
     run_command(f'cp {download_script_template} {download_script}', args.dry_run) 
@@ -105,7 +116,7 @@ parser.add_argument('--delete-after-merge', action="store_true", help="Delete im
 
 args = parser.parse_args()
 
-
+setup_logging(args.verbose)
 
 skip_download = args.skip_download or args.merge_only
 data_dir = args.data_dir
@@ -115,7 +126,7 @@ if skip_download and not data_dir:
     sys.exit(1)
     
 if args.dry_run:
-    print("Dry run")
+    logging.info("Dry run")
     
 from get_tempo_data_utils import get_date_limits, search_for_granules
 
@@ -150,7 +161,7 @@ if not skip_download:
     
     
     if len(granule_urls) == 0:
-        print("No new data found")
+        logging.info("No new data found")
         exit(0)
     
     if args.one_file:
@@ -159,9 +170,9 @@ if not skip_download:
     create_download_list(granule_urls, download_list, folder)
 
     if args.dry_run and not skip_download:
-        print(" ==== Download List  ==== ")
+        logging.info(" ==== Download List  ==== ")
         with open(download_list, 'r') as f:
-            print(f.read())
+            logging.info(f.read())
 
 
     download_data(download_list, folder)
@@ -171,7 +182,7 @@ if not skip_download:
 nc_files = list(folder.glob('*.nc'))
 subset_nc_files = list(folder.glob('subsetted_netcdf/*.nc'))
 if not args.dry_run and not nc_files and (not args.use_subset or not subset_nc_files):
-    print("No new data downloaded")
+    logging.info("No new data downloaded")
     exit(0)
 
 
@@ -192,7 +203,8 @@ if not args.merge_only:
     process_args += ['--text-files-only'] if args.text_files_only else []
     # set name to folder.name if name is not set
     process_args += ['--name', folder.name] if args.name is None else ['--name', args.name]
-    run_command(['./process_data.py'] + process_args, use_subprocess=True, dry_run=False)
+    process_args += ['--debug'] if (args.verbose or args.dry_run) else []
+    run_command(['./process_data.py'] + process_args, use_subprocess=True, dry_run=args.dry_run)
 
 
 
@@ -227,7 +239,7 @@ if args.dry_run:
     import shutil
     if Path(folder).exists():
         shutil.rmtree(folder)
-        print(f"Removed output directory: {folder}")
+        logging.info(f"Removed output directory: {folder}")
 
 
 # ===============================================

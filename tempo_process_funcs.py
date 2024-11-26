@@ -8,8 +8,10 @@ import glob
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mc
+from matplotlib.colors import LinearSegmentedColormap
 # set datetime to default to UTC
 from colormap import svs_tempo_cmap
+from typing import Tuple
 
 
 import matplotlib.image as mimg
@@ -30,6 +32,10 @@ import shapely
 from shapely import Polygon
 from shapely.ops import transform
 
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 directory = ['./2023m1103', './2023m1101', './2024m0328'][2]
 sample = False
 quality_flag = 'high'
@@ -41,7 +47,7 @@ input_files = glob.glob(f"{directory}/TEMPO_NO2_L3_V0*_S*.nc")
 #input_files.sort()
 
 def quality_mask(geoloc: xr.Dataset, product: xr.Dataset, support: xr.Dataset, quality_flag):
-    
+    logging.debug(f"Applying quality mask with flag: {quality_flag}")
     if quality_flag == 'high':
         high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0) & (support['eff_cloud_fraction'] < 0.2)
         return high_quality
@@ -59,6 +65,7 @@ def quality_mask(geoloc: xr.Dataset, product: xr.Dataset, support: xr.Dataset, q
     return None
 
 def cloud_quality_mask(geoloc: xr.Dataset, product: xr.Dataset, support: xr.Dataset, quality_flag):
+    logging.debug(f"Applying cloud quality mask with flag: {quality_flag}")
     if quality_flag == 'high':
         high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0) & (support['eff_cloud_fraction'] >= 0.2)
         return high_quality
@@ -77,6 +84,7 @@ def cloud_quality_mask(geoloc: xr.Dataset, product: xr.Dataset, support: xr.Data
 
 
 def process_file(input_file: str, quality_flag: str = 'svs') -> tuple[xr.Dataset, datetime | None, xr.Dataset, xr.Dataset] :
+    logging.info(f"Processing file: {input_file}")
     datetimestring = input_file.split('_')[-2]
     try:
         datetimes = datetime.strptime(datetimestring, '%Y%m%dT%H%M%SZ')
@@ -95,9 +103,11 @@ def process_file(input_file: str, quality_flag: str = 'svs') -> tuple[xr.Dataset
     cloud_mask = cloud_quality_mask(geoloc, product, support, quality_flag)
     masked_support = support.where(cloud_mask)
     
+    logging.debug(f"Processed file: {input_file}")
     return masked_product, datetimes, coords, masked_support
     
 def get_field_of_regards(geospatial_bounds):
+    logging.debug("Getting field of regards")
     shape = transform(lambda x,y, *args: (y,x), shapely.from_wkt(geospatial_bounds))
     json_spec= shapely.to_geojson(shape)
     return {"type":"GeometryCollection","geometries":[json.loads(json_spec)]}
@@ -105,6 +115,7 @@ def get_field_of_regards(geospatial_bounds):
     
 
 def get_bounds(chunk: xr.DataArray, pairs = False, bbox = False):
+    logging.debug("Getting bounds of the data chunk")
     """
     Get the bounds of the data chunk
     
@@ -131,7 +142,8 @@ def get_bounds(chunk: xr.DataArray, pairs = False, bbox = False):
     #     return lon.min(), lat.min(), lon.max(), lat.max()
     # return lon.min(), lon.max(), lat.min(), lat.max()
 
-def project_array(array, bounds, refinement=1, projection = 'EPSG:3857', method = 'nearest'):
+def project_array(array, bounds, refinement: float=1, projection = 'EPSG:3857', method = 'nearest'):
+    logging.info(f"Projecting array with method: {method}")
     """
     from Jonathan Foster
     Project a numpy array defined in WGS84 coordinates to Mercator Web coordinate system
@@ -189,10 +201,11 @@ def project_array(array, bounds, refinement=1, projection = 'EPSG:3857', method 
             dst_transform=dst_transform,
             dst_crs=dst_crs,
             resampling=method)
+        logging.debug("Projection completed")
         return destination
     
 def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
-   
+    logging.info(f"Saving grayscale image with transparency to: {filename}")
     # Create an alpha channel where NaNs will be 0 (transparent) and others will be 255 (opaque)
     alpha_channel = np.where(np.isnan(data), 0, 255).astype(np.uint8)
     
@@ -206,7 +219,7 @@ def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
     # Normalize the data to 0-255 and convert to uint8, keeping NaNs intact
     data_min = np.nanmin(data)
     data_max = np.nanmax(data)
-    data_normalized = np.nan_to_num((255 * (data - data_min) / (data_max - data_min))).astype(np.uint8)
+    data_normalized = np.nan_to_num((255 * (data - data_min) / (data_max - data_max))).astype(np.uint8)
 
 
     # Replace NaNs in data_normalized with 0 to avoid issues when converting to image
@@ -222,61 +235,52 @@ def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
 
     # Save the RGBA image
     rgba_img.save(filename)
-
+    logging.debug("Grayscale image saved")
     return rgba_img
 
-def reproject_array(array: xr.DataArray | np.ndarray, bounds, refinement = 1, projection = 'ESPG:4326', method = 'average'):
-    if isinstance(array,xr.DataArray):
-        array = array.to_numpy()
-    
-    return project_array(array, 
-                         bounds, 
-                         refinement=refinement, 
-                         projection = projection,
-                         method = method
-                         )
-
-def plot_image(xarray: xr.DataArray, cmap = None, vmin = None, vmax = None, filename: Path | str = 'out.png', reprojection=True, bounds = None, greyscale = False, method = 'average'):
-    
+def reproject_data(xarray: xr.DataArray, bounds, reproject=True, method='average') -> Tuple[np.ndarray, np.ndarray]:
+    logging.info("Reprojecting data")
     og_data = xarray.to_numpy()
     
-    if reprojection:
-        data = project_array(og_data, bounds, refinement=1, method = method)
+    if reproject:
+        projection = 'EPSG:3857'  # Web Mercator
     else:
-        data = og_data[::-1]
+        projection = 'EPSG:4326'  # WGS84 / Equirectangular
+    
+    # Always do both refinements
+    full_res = project_array(og_data, bounds, refinement=1, projection=projection, method=method)
+    half_res = project_array(og_data, bounds, refinement=0.5, projection=projection, method=method)
+    
+    logging.debug("Reprojection completed")
+    return full_res, half_res
 
+def save_image(projected_data: np.ndarray, cmap: LinearSegmentedColormap | str, vmin: float, vmax: float, filename: Path | str) -> None:
+    logging.info(f"Saving image to: {filename}")
+    mimg.imsave(fname=filename, arr=projected_data, cmap=cmap, vmin=vmin, vmax=vmax, origin='upper')
+    logging.debug("Image saved")
+
+# Modify the existing plot_image function if needed
+def plot_image(projected_data: np.ndarray, cmap=None, vmin=0, vmax=1, filename: Path | str = 'out.png', greyscale=False):
+    logging.info(f"Plotting image to: {filename}")
     if cmap is not None:
-        mimg.imsave(fname = filename, arr = data, cmap=cmap, vmin=vmin, vmax=vmax, origin='upper')
+        save_image(projected_data, cmap, vmin, vmax, filename)
     else:
         if greyscale:
-            save_grayscale_with_transparency(data, filename, vmin, vmax)
+            save_grayscale_with_transparency(projected_data, filename, vmin, vmax)
         else:
-            mimg.imsave(fname = filename, arr = data, cmap='gray', vmin=vmin, vmax=vmax, origin='upper')
-        
+            save_image(projected_data, 'gray', vmin, vmax, filename)
+    logging.debug("Image plotted")
 
-
-    # data_lowres = xarray.coarsen(latitude=2, longitude=2, boundary='exact').mean().values
-    if reprojection:
-        data_lowres = project_array(og_data, bounds, refinement=.5, projection = 'EPSG:3857', method = method)
-    else:
-        data_lowres = project_array(og_data, bounds, refinement=.5, projection = 'EPSG:4326', method = method)
-        # data_lowres = xarray.coarsen(latitude=2, longitude=2, boundary='exact').mean().values[::-1]
-    new_path = Path(filename)
-    new_path = new_path.parent / 'resized_images' / new_path.name
-    new_path.parent.mkdir(parents=True, exist_ok=True)
-    # check the it is a directory
-    if not new_path.is_dir():
-        ValueError(f"Path {new_path} is not a directory")
-    mimg.imsave(fname = new_path, arr = data_lowres, cmap=cmap, vmin=vmin, vmax=vmax, origin='upper')
-    
     
 # file name format is tempo_2024-03-28T12h24m.png
 def chunk_time_to_fname(chunck: xr.DataArray, suffix = '') -> str:
+    logging.debug("Generating filename from chunk time")
     time = chunck.time.values
     time_str = time.astype('datetime64[s]').astype(datetime).strftime('%Y-%m-%dT%Hh%Mm')
     return f'tempo_{time_str}{suffix}.png'
 
 def chunk_time_to_jstime(chunck: xr.DataArray) -> int:
+    logging.debug("Converting chunk time to JS timestamp")
     time = chunck.time.values
     #get the number of seconds since the epoch
     time_str = time.astype('datetime64[s]').astype(datetime).strftime('%Y-%m-%dT%Hh%Mm')

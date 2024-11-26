@@ -5,7 +5,7 @@ from pathlib import Path
 import argparse, sys
 import numpy as np
 import xarray as xr
-from tempo_process_funcs import process_file, get_bounds, plot_image, chunk_time_to_fname, chunk_time_to_jstime, svs_tempo_cmap, get_field_of_regards
+from tempo_process_funcs import process_file, get_bounds, plot_image, chunk_time_to_fname, chunk_time_to_jstime, svs_tempo_cmap, get_field_of_regards, reproject_data, save_image
 # from tempo_process_cloud_funcs import process_file as process_cloud_file
 import tqdm
 from concurrent.futures import ThreadPoolExecutor
@@ -39,8 +39,15 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--no-reproject', help='Do not reproject the images', action='store_true')
     parser.add_argument('--method', type=str, help='Method to use for reprojection', default='average')
     parser.add_argument('--text-files-only', help='Only process text files', action='store_true')
+    parser.add_argument('--debug', help='Enable debug logging', action='store_true')
     return parser.parse_args()
 
+def setup_logging(debug: bool) -> None:
+    """
+    Set up logging configuration.
+    """
+    level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def setup_directories(args: argparse.Namespace, dry_run = False) -> Tuple[Path, Path, Path]:
     """
@@ -60,6 +67,7 @@ def setup_directories(args: argparse.Namespace, dry_run = False) -> Tuple[Path, 
     if not dry_run:
         cloud_output.mkdir(parents=True, exist_ok=True)
 
+    logging.debug(f"Directories set up: {directory}, {output}, {cloud_output}")
     return directory, output, cloud_output
 
 
@@ -69,7 +77,9 @@ def get_input_files(directory: Path, pattern: str, level: str, version: str) -> 
     """
     if pattern is None:
         pattern = f"TEMPO_NO2_L{level}_V0{version}*_S*.nc"
-    return glob.glob(f"{directory}/{pattern}")
+    files = glob.glob(f"{directory}/{pattern}")
+    logging.debug(f"Found {len(files)} input files with pattern {pattern}")
+    return files
 
 
 def process_files(input_files: List[str], quality_flag: str, sample: bool,
@@ -86,6 +96,7 @@ def process_files(input_files: List[str], quality_flag: str, sample: bool,
         datetimes.append(out[1])
         geospatial_bounds.append(out[2].geospatial_bounds)
         support.append(out[3])
+    logging.debug(f"Processed {len(input_files)} files")
     return input_data, datetimes, geospatial_bounds, support
 
 
@@ -98,6 +109,7 @@ def combine_data(input_data: List[xr.Dataset],
     support_data = xr.combine_by_coords(support)
     _ = final_data.rio.write_crs("epsg:4326", inplace=True)
     _ = support_data.rio.write_crs("epsg:4326", inplace=True)
+    logging.debug("Combined input data and support data")
     return final_data, support_data
 
 
@@ -131,43 +143,46 @@ def output_text_data(rechunk: xr.DataArray, geospatial_bounds: List[dict], name:
 
     with open(output / f'times_{name}{suffix}.npy', 'w') as f:
         f.write(str(times))
+    logging.debug(f"Output text data to {output}")
 
-
-def save_image(chunk: xr.DataArray, cmap: LinearSegmentedColormap, vmin: float, vmax: float, output: Path,
-               suffix: str, reproject = True, method = 'average') -> None:
-    """
-    Save an image from the data chunk.
-    """
-    bounds = get_bounds(chunk, pairs = True)
-    filename = output / chunk_time_to_fname(chunk, suffix)
-    plot_image(xarray=chunk, cmap=cmap, vmin=vmin, vmax=vmax, filename=filename, reprojection=reproject, bounds=bounds, method = method)
-
+def process_and_save_chunk(chunk: xr.DataArray, cmap: LinearSegmentedColormap, vmin: float, vmax: float, output: Path,
+                           suffix: str, bounds, reproject=True, method='average') -> None:
+    logging.debug(f"Processing chunk with time {chunk.time.values}")
+    full_res, half_res = reproject_data(chunk, bounds, reproject, method)
+    
+    # Save full resolution image
+    full_filename = output / chunk_time_to_fname(chunk, suffix)
+    save_image(full_res, cmap, vmin, vmax, full_filename)
+    logging.debug(f"Saved full resolution image to {full_filename}")
+    
+    # Save half resolution image
+    half_filename = output / 'resized_images' / chunk_time_to_fname(chunk, suffix)
+    half_filename.parent.mkdir(parents=True, exist_ok=True)
+    save_image(half_res, cmap, vmin, vmax, half_filename)
+    logging.debug(f"Saved half resolution image to {half_filename}")
 
 def process_new_data(dataarray: xr.DataArray, geospatial_bounds: List[dict], name: str, suffix: str, output: Path,
                      args: argparse.Namespace, cmap: LinearSegmentedColormap, vmin: float, vmax: float, reproject = True, method = 'average') -> None:
-    """
-    Process new data and save images and singlethreaded.
-    """
-    sorted = dataarray.sortby('time')
-    (sorted['time'].values == dataarray['time'].values).all()
 
-    logging.info("Rechunking data")
+   
+    logging.debug("Rechunking data")
     rechunk = dataarray.chunk(chunks={"longitude": 188, "latitude": 373, "time": 1})
-
     output_text_data(rechunk, geospatial_bounds, name, output, suffix)
-    
+
     if args.text_files_only:
         return
 
-    logging.info('Saving images')
+    logging.info('Reprojecting and saving images')
     if not args.singlethreaded or len(rechunk) < 3:
+        logging.debug('Using ThreadPool')
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(save_image, ch, cmap, vmin, vmax, output, suffix, reproject, method) for ch in tqdm.tqdm(rechunk)]
+            futures = [executor.submit(process_and_save_chunk, ch, cmap, vmin, vmax, output, suffix, get_bounds(ch, pairs=True), reproject, method) for ch in tqdm.tqdm(rechunk)]
             for future in tqdm.tqdm(futures, desc="Processing"):
                 result = future.result()
     else:
         for ch in tqdm.tqdm(rechunk):
-            save_image(ch, cmap, vmin, vmax, output, suffix, reproject, method)
+            process_and_save_chunk(ch, cmap, vmin, vmax, output, suffix, get_bounds(ch, pairs=True), reproject, method)
+
 
     
 
@@ -177,6 +192,7 @@ def main() -> None:
     Main function to process TEMPO data.
     """
     args = parse_arguments()
+    setup_logging(args.debug)
     if args.dry_run:    
         logging.info("Dry run")
     directory, output, cloud_output = setup_directories(args, args.dry_run)
@@ -203,6 +219,7 @@ def main() -> None:
     )
     
     if args.dry_run:
+        logging.info("Dry run: Skipping actual processing steps.")
         return
 
     input_data, datetimes, geospatial_bounds, support = process_files(input_files, args.quality, args.sample,

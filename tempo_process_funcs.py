@@ -75,7 +75,7 @@ def cloud_cover_mask(quality_flag):
 
 
 def process_file(input_file: str, quality_flag: str = 'svs') -> tuple[xr.Dataset, datetime | None, xr.Dataset, xr.Dataset] :
-    logging.info(f"Processing file: {input_file}")
+    logging.debug(f"Processing file: {input_file}")
     datetimestring = input_file.split('_')[-2]
     try:
         datetimes = datetime.strptime(datetimestring, '%Y%m%dT%H%M%SZ')
@@ -92,10 +92,10 @@ def process_file(input_file: str, quality_flag: str = 'svs') -> tuple[xr.Dataset
     masked_product = product.where(mask)
     
     # cloud_mask = cloud_quality_mask(geoloc, product, support, quality_flag)
-    # masked_support = support.where(cloud_mask)
+    masked_support = support.where(mask)
     
     logging.debug(f"Processed file: {input_file}")
-    return masked_product, datetimes, coords , support
+    return masked_product, datetimes, coords , masked_support
     
 def get_field_of_regards(geospatial_bounds):
     logging.debug("Getting field of regards")
@@ -134,7 +134,7 @@ def get_bounds(chunk: xr.DataArray, pairs = False, bbox = False):
     # return lon.min(), lon.max(), lat.min(), lat.max()
 
 def project_array(array, bounds, refinement: float=1, projection = 'EPSG:3857', method = 'nearest'):
-    logging.info(f"Projecting array with method: {method}")
+    logging.debug(f"Projecting array with method: {method}")
     """
     from Jonathan Foster
     Project a numpy array defined in WGS84 coordinates to Mercator Web coordinate system
@@ -181,8 +181,6 @@ def project_array(array, bounds, refinement: float=1, projection = 'EPSG:3857', 
             method = Resampling.sum
         else:
             method = Resampling.average
-        
-        print('Projecting with method', method.name)
 
         reproject(
             array,
@@ -196,7 +194,7 @@ def project_array(array, bounds, refinement: float=1, projection = 'EPSG:3857', 
         return destination
     
 def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
-    logging.info(f"Saving grayscale image with transparency to: {filename}")
+    logging.debug(f"Saving grayscale image with transparency to: {filename}")
     # Create an alpha channel where NaNs will be 0 (transparent) and others will be 255 (opaque)
     alpha_channel = np.where(np.isnan(data), 0, 255).astype(np.uint8)
     
@@ -230,7 +228,7 @@ def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
     return rgba_img
 
 def reproject_data(xarray: xr.DataArray, bounds, reproject=True, method='average') -> Tuple[np.ndarray, np.ndarray]:
-    logging.info("Reprojecting data")
+    logging.debug("Reprojecting data")
     og_data = xarray.to_numpy()
     
     if reproject:
@@ -252,7 +250,7 @@ def save_image(projected_data: np.ndarray, cmap: LinearSegmentedColormap | str, 
 
 # Modify the existing plot_image function if needed
 def plot_image(projected_data: np.ndarray, cmap=None, vmin=0, vmax=1, filename: Path | str = 'out.png', greyscale=False):
-    logging.info(f"Plotting image to: {filename}")
+    logging.debug(f"Plotting image to: {filename}")
     if cmap is not None:
         save_image(projected_data, cmap, vmin, vmax, filename)
     else:

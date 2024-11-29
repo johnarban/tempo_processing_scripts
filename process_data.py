@@ -5,8 +5,7 @@ from pathlib import Path
 import argparse, sys
 import numpy as np
 import xarray as xr
-from tempo_process_funcs import process_file, get_bounds, plot_image, chunk_time_to_fname, chunk_time_to_jstime, svs_tempo_cmap, get_field_of_regards, reproject_data, save_image
-# from tempo_process_cloud_funcs import process_file as process_cloud_file
+from tempo_process_funcs import process_file, get_bounds, chunk_time_to_fname, chunk_time_to_jstime, svs_tempo_cmap, get_field_of_regards, reproject_data, save_image, cloud_cover_mask
 import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from matplotlib.colors import LinearSegmentedColormap
@@ -97,7 +96,7 @@ def process_files(input_files: List[str], quality_flag: str, sample: bool,
         geospatial_bounds.append(out[2].geospatial_bounds)
         support.append(out[3])
     logging.debug(f"Processed {len(input_files)} files")
-    return input_data, datetimes, geospatial_bounds, support
+    return input_data, datetimes, geospatial_bounds , support
 
 
 def combine_data(input_data: List[xr.Dataset],
@@ -145,26 +144,60 @@ def output_text_data(rechunk: xr.DataArray, geospatial_bounds: List[dict], name:
         f.write(str(times))
     logging.debug(f"Output text data to {output}")
 
-def process_and_save_chunk(chunk: xr.DataArray, cmap: LinearSegmentedColormap, vmin: float, vmax: float, output: Path,
-                           suffix: str, bounds, reproject=True, method='average') -> None:
+def process_and_save_chunk(chunk: xr.DataArray, cloud_data: xr.DataArray, cmap: LinearSegmentedColormap, vmin: float, vmax: float, output: Path,
+                           suffix: str, bounds, reproject=True, method='average', cloud_threshold: float = 0.5) -> None:
     logging.debug(f"Processing chunk with time {chunk.time.values}")
+    
+    # Reproject data without applying cloud mask
     full_res, half_res = reproject_data(chunk, bounds, reproject, method)
+    
+    # Reproject cloud data
+    full_res_cloud, half_res_cloud = reproject_data(cloud_data, bounds, reproject, method)
+    
+    # Generate cloud masks for full and half resolution
+    full_cloud_mask = full_res_cloud > cloud_threshold
+    half_cloud_mask = half_res_cloud > cloud_threshold
+    
+    # Apply cloud mask after reprojection
+    full_res_masked = np.where(~full_cloud_mask, full_res, np.nan)
+    half_res_masked = np.where(~half_cloud_mask, half_res, np.nan)
     
     # Save full resolution image
     full_filename = output / chunk_time_to_fname(chunk, suffix)
-    save_image(full_res, cmap, vmin, vmax, full_filename)
+    save_image(full_res_masked, cmap, vmin, vmax, full_filename)
     logging.debug(f"Saved full resolution image to {full_filename}")
     
     # Save half resolution image
     half_filename = output / 'resized_images' / chunk_time_to_fname(chunk, suffix)
     half_filename.parent.mkdir(parents=True, exist_ok=True)
-    save_image(half_res, cmap, vmin, vmax, half_filename)
+    save_image(half_res_masked, cmap, vmin, vmax, half_filename)
     logging.debug(f"Saved half resolution image to {half_filename}")
 
-def process_new_data(dataarray: xr.DataArray, geospatial_bounds: List[dict], name: str, suffix: str, output: Path,
-                     args: argparse.Namespace, cmap: LinearSegmentedColormap, vmin: float, vmax: float, reproject = True, method = 'average') -> None:
+# def process_new_data(dataarray: xr.DataArray, geospatial_bounds: List[dict], name: str, suffix: str, output: Path,
+#                      args: argparse.Namespace, cmap: LinearSegmentedColormap, vmin: float, vmax: float, reproject = True, method = 'average') -> None:
 
    
+#     logging.debug("Rechunking data")
+#     rechunk = dataarray.chunk(chunks={"longitude": 188, "latitude": 373, "time": 1})
+#     output_text_data(rechunk, geospatial_bounds, name, output, suffix)
+
+#     if args.text_files_only:
+#         return
+
+#     logging.info('Reprojecting and saving images')
+#     if not args.singlethreaded or len(rechunk) < 3:
+#         logging.debug('Using ThreadPool')
+#         with ThreadPoolExecutor(max_workers=10) as executor:
+#             futures = [executor.submit(process_and_save_chunk, ch, cmap, vmin, vmax, output, suffix, get_bounds(ch, pairs=True), reproject, method) for ch in tqdm.tqdm(rechunk)]
+#             for future in tqdm.tqdm(futures, desc="Processing"):
+#                 result = future.result()
+#     else:
+#         for ch in tqdm.tqdm(rechunk):
+#             process_and_save_chunk(ch, cmap, vmin, vmax, output, suffix, get_bounds(ch, pairs=True), reproject, method)
+
+def process_new_data(dataarray: xr.DataArray, cloud_data: xr.DataArray, geospatial_bounds: List[dict], name: str, suffix: str, output: Path,
+                     args: argparse.Namespace, cmap: LinearSegmentedColormap, vmin: float, vmax: float, reproject = True, method = 'average', cloud_threshold: float = 0.5) -> None:
+
     logging.debug("Rechunking data")
     rechunk = dataarray.chunk(chunks={"longitude": 188, "latitude": 373, "time": 1})
     output_text_data(rechunk, geospatial_bounds, name, output, suffix)
@@ -172,19 +205,20 @@ def process_new_data(dataarray: xr.DataArray, geospatial_bounds: List[dict], nam
     if args.text_files_only:
         return
 
-    logging.info('Reprojecting and saving images')
-    if not args.singlethreaded or len(rechunk) < 3:
+    logging.info(f"Processing {name} data")
+
+    def process_chunk(time):
+        chunk = rechunk.sel(time=time)
+        cloud_chunk = cloud_data.sel(time=time)
+        process_and_save_chunk(chunk, cloud_chunk, cmap, vmin, vmax, output, suffix, geospatial_bounds, reproject, method, cloud_threshold)
+
+    if not args.singlethreaded and len(rechunk.time) >= 3:
         logging.debug('Using ThreadPool')
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(process_and_save_chunk, ch, cmap, vmin, vmax, output, suffix, get_bounds(ch, pairs=True), reproject, method) for ch in tqdm.tqdm(rechunk)]
-            for future in tqdm.tqdm(futures, desc="Processing"):
-                result = future.result()
+            list(tqdm.tqdm(executor.map(process_chunk, rechunk.time.values), total=len(rechunk.time), desc="Processing chunks"))
     else:
-        for ch in tqdm.tqdm(rechunk):
-            process_and_save_chunk(ch, cmap, vmin, vmax, output, suffix, get_bounds(ch, pairs=True), reproject, method)
-
-
-    
+        for time in tqdm.tqdm(rechunk.time.values, desc="Processing chunks"):
+            process_chunk(time)
 
 
 def main() -> None:
@@ -222,8 +256,9 @@ def main() -> None:
         logging.info("Dry run: Skipping actual processing steps.")
         return
 
-    input_data, datetimes, geospatial_bounds, support = process_files(input_files, args.quality, args.sample,
+    input_data, datetimes, geospatial_bounds, support = process_files(input_files, args.quality, args.sample, 
                                                                       process_file)
+    
     final_data, support_data = combine_data(input_data, support)
     final_data['vertical_column_troposphere'].name = 'NO2'
     support_data['eff_cloud_fraction'].name = 'Clouds'
@@ -232,14 +267,18 @@ def main() -> None:
     no2_data = no2_data.rio.write_nodata(np.nan, encoded=True)
     no2_data.data = no2_data.data / 10**16
 
-    process_new_data(no2_data, geospatial_bounds, args.name, args.suffix, output, args, svs_tempo_cmap, 0.01, 1.5, not args.no_reproject, args.method)
+    cloud_data = support_data['eff_cloud_fraction']
+    cloud_data = cloud_data.rio.write_nodata(np.nan, encoded=True)
+    cloud_data.data = cloud_data.data / 1
+
+    cloud_threshold = cloud_cover_mask(args.quality)
+
+    process_new_data(no2_data, cloud_data, geospatial_bounds, args.name, args.suffix, output, args, svs_tempo_cmap, 0.01, 1.5, not args.no_reproject, args.method, cloud_threshold)
     
     if args.do_clouds:
-        cloud_data = support_data['eff_cloud_fraction']
-        cloud_data = cloud_data.rio.write_nodata(np.nan, encoded=True)
-        cloud_data.data = cloud_data.data / 1
+        # For cloud data, we use an inverted cloud threshold
+        process_new_data(cloud_data, cloud_data, geospatial_bounds, args.name, args.suffix, cloud_output, args, cloud_cmap, 0.5, 1, not args.no_reproject, args.method, cloud_threshold)
 
-    process_new_data(cloud_data, geospatial_bounds, args.name, args.suffix, cloud_output, args, cloud_cmap, 0.5, 1, not args.no_reproject, args.method)
 
 
 if __name__ == "__main__":

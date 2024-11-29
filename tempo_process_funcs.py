@@ -49,38 +49,29 @@ input_files = glob.glob(f"{directory}/TEMPO_NO2_L3_V0*_S*.nc")
 def quality_mask(geoloc: xr.Dataset, product: xr.Dataset, support: xr.Dataset, quality_flag):
     logging.debug(f"Applying quality mask with flag: {quality_flag}")
     if quality_flag == 'high':
-        high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0) & (support['eff_cloud_fraction'] < 0.2)
-        return high_quality
+        high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0)
     elif quality_flag == 'medium':
-        med_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0) & (support['eff_cloud_fraction'] < 0.4)
-        return med_quality
+        high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0)
     elif quality_flag == 'low':
-        low_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0)
-        return low_quality
+        high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0)
     elif quality_flag == 'svs':
-        svs_quality = (geoloc['solar_zenith_angle'] <= 80) & (product['main_data_quality_flag'] <= 1) & (support['eff_cloud_fraction'] <= 0.5)
-        return svs_quality
+        high_quality = (geoloc['solar_zenith_angle'] <= 80) & (product['main_data_quality_flag'] <= 1)
     elif quality_flag == 'all':
-        return product['main_data_quality_flag'] <= 1
-    return None
+        high_quality = product['main_data_quality_flag'] <= 1
+    else:
+        return None
+    return high_quality
 
-def cloud_quality_mask(geoloc: xr.Dataset, product: xr.Dataset, support: xr.Dataset, quality_flag):
-    logging.debug(f"Applying cloud quality mask with flag: {quality_flag}")
+def cloud_cover_mask(quality_flag):
+    logging.debug(f"Getting cloud threshold for quality flag: {quality_flag}")
     if quality_flag == 'high':
-        high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0) & (support['eff_cloud_fraction'] >= 0.2)
-        return high_quality
+        return 0.2
     elif quality_flag == 'medium':
-        med_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0) & (support['eff_cloud_fraction'] >= 0.4)
-        return med_quality
-    elif quality_flag == 'low':
-        low_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0)
-        return low_quality
+        return 0.4
     elif quality_flag == 'svs':
-        svs_quality = (geoloc['solar_zenith_angle'] <= 80) & (product['main_data_quality_flag'] <= 1) & (support['eff_cloud_fraction'] > 0.5)
-        return svs_quality
-    elif quality_flag == 'all':
-        return product['main_data_quality_flag'] <= 1
-    return None
+        return 0.5
+    else:
+        return 0.0
 
 
 def process_file(input_file: str, quality_flag: str = 'svs') -> tuple[xr.Dataset, datetime | None, xr.Dataset, xr.Dataset] :
@@ -100,11 +91,11 @@ def process_file(input_file: str, quality_flag: str = 'svs') -> tuple[xr.Dataset
     mask = quality_mask(geoloc, product, support, quality_flag)
     masked_product = product.where(mask)
     
-    cloud_mask = cloud_quality_mask(geoloc, product, support, quality_flag)
-    masked_support = support.where(cloud_mask)
+    # cloud_mask = cloud_quality_mask(geoloc, product, support, quality_flag)
+    # masked_support = support.where(cloud_mask)
     
     logging.debug(f"Processed file: {input_file}")
-    return masked_product, datetimes, coords, masked_support
+    return masked_product, datetimes, coords , support
     
 def get_field_of_regards(geospatial_bounds):
     logging.debug("Getting field of regards")

@@ -292,7 +292,7 @@ if not args.text_files_only:
     run_command(['sh', 'compress_and_diff.sh'], cwd=resized_image_directory, dry_run=args.dry_run)
 
 # run_command(f'sh merge.sh {folder.name}', args.dry_run)
-run_command(['sh', 'merge.sh', '-s', str(image_directory) +'/', '-d', str(image_merge_directory)])
+run_command(['sh', 'merge.sh', '-s', str(image_directory) +'/', '-d', str(image_merge_directory)], dry_run=args.dry_run)
 
 # Compress & Merge Cloud Data
 if not args.skip_clouds:
@@ -304,7 +304,7 @@ if not args.skip_clouds:
         run_command(['sh', 'compress_and_diff.sh'], cwd=resized_cloud_image_directory, dry_run=args.dry_run)
 
     # run_command(f"sh merge_clouds.sh {folder.name}", args.dry_run)
-    run_command(['sh', 'merge.sh', '-s', str(cloud_image_directory)+'/', '-d', str(cloud_merge_directory), '-t' if args.dry_run else '', '-x' if args.delete_after_merge else ''])
+    run_command(['sh', 'merge.sh', '-s', str(cloud_image_directory)+'/', '-d', str(cloud_merge_directory), '-t' if args.dry_run else '', '-x' if args.delete_after_merge else ''], dry_run=args.dry_run)
 
 # subset the data
 if (not args.skip_subset) and (not args.use_subset) and (not args.text_files_only):

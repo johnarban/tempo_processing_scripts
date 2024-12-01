@@ -1,6 +1,7 @@
 """
 Adapted from code orignially by Jonathan Foster (@jfoster17 on github)
 """
+
 from datetime import datetime, timezone
 import numpy as np
 import xarray as xr
@@ -9,6 +10,7 @@ import glob
 import matplotlib.pyplot as plt
 import matplotlib.colors as mc
 from matplotlib.colors import LinearSegmentedColormap
+
 # set datetime to default to UTC
 from colormap import svs_tempo_cmap
 from typing import Tuple
@@ -34,78 +36,98 @@ from shapely.ops import transform
 
 import logging
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
-directory = ['./2023m1103', './2023m1101', './2024m0328'][2]
+directory = ["./2023m1103", "./2023m1101", "./2024m0328"][2]
 sample = False
-quality_flag = 'high'
+quality_flag = "high"
 input_files = glob.glob(f"{directory}/TEMPO_NO2_L3_V0*_S*.nc")
 
 
-
 # sort input_files by datetime
-#input_files.sort()
+# input_files.sort()
 
-def quality_mask(geoloc: xr.Dataset, product: xr.Dataset, support: xr.Dataset, quality_flag):
+
+def quality_mask(
+    geoloc: xr.Dataset, product: xr.Dataset, support: xr.Dataset, quality_flag
+):
     logging.debug(f"Applying quality mask with flag: {quality_flag}")
-    if quality_flag == 'high':
-        high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0)
-    elif quality_flag == 'medium':
-        high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0)
-    elif quality_flag == 'low':
-        high_quality = (geoloc['solar_zenith_angle'] < 80) & (product['main_data_quality_flag'] == 0)
-    elif quality_flag == 'svs':
-        high_quality = (geoloc['solar_zenith_angle'] <= 80) & (product['main_data_quality_flag'] <= 1)
-    elif quality_flag == 'all':
-        high_quality = product['main_data_quality_flag'] <= 1
+    if quality_flag == "high":
+        high_quality = (geoloc["solar_zenith_angle"] < 80) & (
+            product["main_data_quality_flag"] == 0
+        )
+    elif quality_flag == "medium":
+        high_quality = (geoloc["solar_zenith_angle"] < 80) & (
+            product["main_data_quality_flag"] == 0
+        )
+    elif quality_flag == "low":
+        high_quality = (geoloc["solar_zenith_angle"] < 80) & (
+            product["main_data_quality_flag"] == 0
+        )
+    elif quality_flag == "svs":
+        high_quality = (geoloc["solar_zenith_angle"] <= 80) & (
+            product["main_data_quality_flag"] <= 1
+        )
+    elif quality_flag == "all":
+        high_quality = product["main_data_quality_flag"] <= 1
     else:
         return None
     return high_quality
 
+
 def cloud_cover_mask(quality_flag):
     logging.debug(f"Getting cloud threshold for quality flag: {quality_flag}")
-    if quality_flag == 'high':
+    if quality_flag == "high":
         return 0.2
-    elif quality_flag == 'medium':
+    elif quality_flag == "medium":
         return 0.4
-    elif quality_flag == 'svs':
+    elif quality_flag == "svs":
         return 0.5
     else:
         return 0.0
 
 
-def process_file(input_file: str, quality_flag: str = 'svs') -> tuple[xr.Dataset, datetime | None, xr.Dataset, xr.Dataset] :
+def process_file(
+    input_file: str, quality_flag: str = "svs"
+) -> tuple[xr.Dataset, datetime | None, xr.Dataset, xr.Dataset]:
     logging.debug(f"Processing file: {input_file}")
-    datetimestring = input_file.split('_')[-2]
+    datetimestring = input_file.split("_")[-2]
     try:
-        datetimes = datetime.strptime(datetimestring, '%Y%m%dT%H%M%SZ')
+        datetimes = datetime.strptime(datetimestring, "%Y%m%dT%H%M%SZ")
     except ValueError:
         datetimes = None
-    coords = xr.open_dataset(input_file, engine='h5netcdf', chunks='auto')
-    product = xr.open_dataset(input_file, engine='h5netcdf', chunks='auto', group='product')
-    geoloc = xr.open_dataset(input_file, engine='h5netcdf', chunks='auto', group='geolocation')
-    support = xr.open_dataset(input_file, engine='h5netcdf', chunks='auto', group='support_data')
+    coords = xr.open_dataset(input_file, engine="h5netcdf", chunks="auto")
+    product = xr.open_dataset(
+        input_file, engine="h5netcdf", chunks="auto", group="product"
+    )
+    geoloc = xr.open_dataset(
+        input_file, engine="h5netcdf", chunks="auto", group="geolocation"
+    )
+    support = xr.open_dataset(
+        input_file, engine="h5netcdf", chunks="auto", group="support_data"
+    )
     product = product.assign_coords(coords.coords)
-    
 
     mask = quality_mask(geoloc, product, support, quality_flag)
     masked_product = product.where(mask)
-    
+
     # cloud_mask = cloud_quality_mask(geoloc, product, support, quality_flag)
     masked_support = support.where(mask)
-    
+
     logging.debug(f"Processed file: {input_file}")
-    return masked_product, datetimes, coords , masked_support
-    
+    return masked_product, datetimes, coords, masked_support
+
+
 def get_field_of_regards(geospatial_bounds):
     logging.debug("Getting field of regards")
-    shape = transform(lambda x,y, *args: (y,x), shapely.from_wkt(geospatial_bounds))
-    json_spec= shapely.to_geojson(shape)
-    return {"type":"GeometryCollection","geometries":[json.loads(json_spec)]}
-    
-    
+    shape = transform(lambda x, y, *args: (y, x), shapely.from_wkt(geospatial_bounds))
+    json_spec = shapely.to_geojson(shape)
+    return {"type": "GeometryCollection", "geometries": [json.loads(json_spec)]}
 
-def get_bounds(chunk: xr.DataArray, pairs = False, bbox = False):
+
+def get_bounds(chunk: xr.DataArray, pairs=False, bbox=False):
     logging.debug("Getting bounds of the data chunk")
     """
     Get the bounds of the data chunk
@@ -121,8 +143,7 @@ def get_bounds(chunk: xr.DataArray, pairs = False, bbox = False):
     if bbox:
         return left, bottom, right, top
     return left, right, bottom, top
-    
-    
+
     # lon = chunk['longitude'].values
     # lat = chunk['latitude'].values
     # lat_min, lat_max = lat.min(), lat.max()
@@ -133,7 +154,10 @@ def get_bounds(chunk: xr.DataArray, pairs = False, bbox = False):
     #     return lon.min(), lat.min(), lon.max(), lat.max()
     # return lon.min(), lon.max(), lat.min(), lat.max()
 
-def project_array(array, bounds, refinement: float=1, projection = 'EPSG:3857', method = 'nearest'):
+
+def project_array(
+    array, bounds, refinement: float = 1, projection="EPSG:3857", method="nearest"
+):
     logging.debug(f"Projecting array with method: {method}")
     """
     from Jonathan Foster
@@ -152,32 +176,33 @@ def project_array(array, bounds, refinement: float=1, projection = 'EPSG:3857', 
 
         (lat_min, lon_min), (lat_max, lon_max) = bounds
         nlat, nlon = array.shape
-        dlat = (lat_max - lat_min)/nlat
-        dlon = (lon_max - lon_min)/nlon
+        dlat = (lat_max - lat_min) / nlat
+        dlon = (lon_max - lon_min) / nlon
         src_transform = A.translation(lon_min, lat_min) * A.scale(dlon, dlat)
-        src_crs = {'init': 'EPSG:4326'}
+        src_crs = {"init": "EPSG:4326"}
 
-        nlat2 = int(nlat*refinement)
-        nlon2 = int(nlon*refinement)
+        nlat2 = int(nlat * refinement)
+        nlon2 = int(nlon * refinement)
         dst_shape = (nlat2, nlon2)
-        dst_crs = {'init': projection}
+        dst_crs = {"init": projection}
         bbox = [lon_min, lat_min, lon_max, lat_max]
         dst_transform, width, height = calculate_default_transform(
-            src_crs, dst_crs, nlon, nlat, *bbox, dst_width=nlon2, dst_height=nlat2)
+            src_crs, dst_crs, nlon, nlat, *bbox, dst_width=nlon2, dst_height=nlat2
+        )
         dst_shape = height, width
         destination = np.zeros(dst_shape)
-        
-        if method == 'average':
+
+        if method == "average":
             method = Resampling.average
-        elif method == 'nearest':
+        elif method == "nearest":
             method = Resampling.nearest
-        elif method == 'bilinear':
+        elif method == "bilinear":
             method = Resampling.bilinear
-        elif method == 'cubic':
+        elif method == "cubic":
             method = Resampling.cubic
-        elif method == 'med':
+        elif method == "med":
             method = Resampling.med
-        elif method == 'sum':
+        elif method == "sum":
             method = Resampling.sum
         else:
             method = Resampling.average
@@ -189,34 +214,35 @@ def project_array(array, bounds, refinement: float=1, projection = 'EPSG:3857', 
             src_crs=src_crs,
             dst_transform=dst_transform,
             dst_crs=dst_crs,
-            resampling=method)
+            resampling=method,
+        )
         logging.debug("Projection completed")
         return destination
-    
+
+
 def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
     logging.debug(f"Saving grayscale image with transparency to: {filename}")
     # Create an alpha channel where NaNs will be 0 (transparent) and others will be 255 (opaque)
     alpha_channel = np.where(np.isnan(data), 0, 255).astype(np.uint8)
-    
-     # Clamp the data if vmin or vmax is specified
+
+    # Clamp the data if vmin or vmax is specified
     if vmin is not None:
         data = np.maximum(data, vmin)
     if vmax is not None:
         data = np.minimum(data, vmax)
-    
-    
+
     # Normalize the data to 0-255 and convert to uint8, keeping NaNs intact
     data_min = np.nanmin(data)
     data_max = np.nanmax(data)
-    data_normalized = np.nan_to_num((255 * (data - data_min) / (data_max - data_max))).astype(np.uint8)
-
+    data_normalized = np.nan_to_num(
+        (255 * (data - data_min) / (data_max - data_max))
+    ).astype(np.uint8)
 
     # Replace NaNs in data_normalized with 0 to avoid issues when converting to image
     data_normalized[alpha_channel == 0] = 0
 
-
     # Convert the data array to a Pillow image in grayscale mode ('L')
-    grayscale_img = Image.fromarray(data_normalized, mode='L')
+    grayscale_img = Image.fromarray(data_normalized, mode="L")
 
     # Convert to RGBA mode and apply transparency
     rgba_img = grayscale_img.convert("RGBA")
@@ -227,29 +253,58 @@ def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
     logging.debug("Grayscale image saved")
     return rgba_img
 
-def reproject_data(xarray: xr.DataArray, bounds, reproject=True, method='average') -> Tuple[np.ndarray, np.ndarray]:
+
+def reproject_data(
+    xarray: xr.DataArray, bounds, reproject=True, method="average"
+) -> Tuple[np.ndarray, np.ndarray]:
     logging.debug("Reprojecting data")
     og_data = xarray.to_numpy()
-    
+
     if reproject:
-        projection = 'EPSG:3857'  # Web Mercator
+        projection = "EPSG:3857"  # Web Mercator
     else:
-        projection = 'EPSG:4326'  # WGS84 / Equirectangular
-    
+        projection = "EPSG:4326"  # WGS84 / Equirectangular
+
     # Always do both refinements
-    full_res = project_array(og_data, bounds, refinement=1, projection=projection, method=method)
-    half_res = project_array(og_data, bounds, refinement=0.5, projection=projection, method=method)
-    
+    full_res = project_array(
+        og_data, bounds, refinement=1, projection=projection, method=method
+    )
+    half_res = project_array(
+        og_data, bounds, refinement=0.5, projection=projection, method=method
+    )
+
     logging.debug("Reprojection completed")
     return full_res, half_res
 
-def save_image(projected_data: np.ndarray, cmap: LinearSegmentedColormap | str, vmin: float, vmax: float, filename: Path | str) -> None:
+
+def save_image(
+    projected_data: np.ndarray,
+    cmap: LinearSegmentedColormap | str,
+    vmin: float,
+    vmax: float,
+    filename: Path | str,
+) -> None:
     logging.info(f"Saving image to: {filename}")
-    mimg.imsave(fname=filename, arr=projected_data, cmap=cmap, vmin=vmin, vmax=vmax, origin='upper')
+    mimg.imsave(
+        fname=filename,
+        arr=projected_data,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        origin="upper",
+    )
     logging.debug("Image saved")
 
+
 # Modify the existing plot_image function if needed
-def plot_image(projected_data: np.ndarray, cmap=None, vmin=0, vmax=1, filename: Path | str = 'out.png', greyscale=False):
+def plot_image(
+    projected_data: np.ndarray,
+    cmap=None,
+    vmin=0,
+    vmax=1,
+    filename: Path | str = "out.png",
+    greyscale=False,
+):
     logging.debug(f"Plotting image to: {filename}")
     if cmap is not None:
         save_image(projected_data, cmap, vmin, vmax, filename)
@@ -257,27 +312,28 @@ def plot_image(projected_data: np.ndarray, cmap=None, vmin=0, vmax=1, filename: 
         if greyscale:
             save_grayscale_with_transparency(projected_data, filename, vmin, vmax)
         else:
-            save_image(projected_data, 'gray', vmin, vmax, filename)
+            save_image(projected_data, "gray", vmin, vmax, filename)
     logging.debug("Image plotted")
 
-    
+
 # file name format is tempo_2024-03-28T12h24m.png
-def chunk_time_to_fname(chunck: xr.DataArray, suffix = '') -> str:
+def chunk_time_to_fname(chunck: xr.DataArray, suffix="") -> str:
     logging.debug("Generating filename from chunk time")
     time = chunck.time.values
-    time_str = time.astype('datetime64[s]').astype(datetime).strftime('%Y-%m-%dT%Hh%Mm')
-    return f'tempo_{time_str}{suffix}.png'
+    time_str = time.astype("datetime64[s]").astype(datetime).strftime("%Y-%m-%dT%Hh%Mm")
+    return f"tempo_{time_str}{suffix}.png"
+
 
 def chunk_time_to_jstime(chunck: xr.DataArray) -> int:
     logging.debug("Converting chunk time to JS timestamp")
     time = chunck.time.values
-    #get the number of seconds since the epoch
-    time_str = time.astype('datetime64[s]').astype(datetime).strftime('%Y-%m-%dT%Hh%Mm')
+    # get the number of seconds since the epoch
+    time_str = time.astype("datetime64[s]").astype(datetime).strftime("%Y-%m-%dT%Hh%Mm")
     # convert the time string to datetime
-    d = datetime.strptime(time_str, '%Y-%m-%dT%Hh%Mm')
+    d = datetime.strptime(time_str, "%Y-%m-%dT%Hh%Mm")
     # need to convert timezone to utc https://www.phind.com/search?cache=bywp7qy3dytgxu48phlmlg7e
     d_utc = d.replace(tzinfo=timezone.utc)
     # get the number of milliseconds since the epoch
-    time = int(d_utc.timestamp()*1000)
-    
+    time = int(d_utc.timestamp() * 1000)
+
     return time

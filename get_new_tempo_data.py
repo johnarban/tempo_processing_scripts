@@ -133,6 +133,8 @@ parser.add_argument('--name', type=str, help='Name of the data directory', defau
 parser.add_argument('--merge-dir', type=str, help="Top level directory to place images in", default = "~/github/tempo-data-holdings" )
 # add merge only options
 parser.add_argument('--merge-only', action="store_true", help="set this to only perform file merges")
+# skip merge options
+parser.add_argument('--skip-merge', action="store_true", help="skip merging to production directory")
 # add delete after merge option
 parser.add_argument('--delete-after-merge', action="store_true", help="Delete images in orginal directory afer merge")
 # add output name option
@@ -140,6 +142,9 @@ parser.add_argument('--output-name', type=str, help='Output name for images and 
 # add date range options
 parser.add_argument('--start-date', type=str, help='Start date for the data download (format: YYYY-MM-DD)')
 parser.add_argument('--end-date', type=str, help='End date for the data download (format: YYYY-MM-DD)')
+# use the input file name 
+parser.add_argument('--use-input-filename', action="store_true", help="Use the same name format as the input TEMPO files")
+parser.add_argument('--no-output', action="store_true", help="Do not output images or text files")
 
 args = parser.parse_args()
 
@@ -279,32 +284,36 @@ if not args.merge_only:
     # set name to folder.name if name is not set
     process_args += ['--name', output_name] if args.name is None else ['--name', args.name]
     process_args += ['--debug'] if (args.verbose or args.dry_run) else []
+    process_args += ['--use-input-filename'] if args.use_input_filename else []
+    process_args += ['--no-output'] if args.no_output else []
     run_command(['./process_data.py'] + process_args, dry_run=args.dry_run, run_anyway=True)
 
 
 
 # Compress & Merge NO2 Data
-if not args.text_files_only:
+if not args.text_files_only and not args.no_output:
     run_command(['cp', 'compress_and_diff.sh', str(image_directory)], args.dry_run)
     run_command(['cp', 'compress_and_diff.sh', str(resized_image_directory)], args.dry_run)
 
     run_command(['sh', 'compress_and_diff.sh'], cwd=image_directory, dry_run=args.dry_run)
     run_command(['sh', 'compress_and_diff.sh'], cwd=resized_image_directory, dry_run=args.dry_run)
 
-# run_command(f'sh merge.sh {folder.name}', args.dry_run)
-run_command(['sh', 'merge.sh', '-s', str(image_directory) +'/', '-d', str(image_merge_directory)], dry_run=args.dry_run)
+if not args.skip_merge:
+    # run_command(f'sh merge.sh {folder.name}', args.dry_run)
+    run_command(['sh', 'merge.sh', '-s', str(image_directory) +'/', '-d', str(image_merge_directory)], dry_run=args.dry_run)
 
 # Compress & Merge Cloud Data
 if not args.skip_clouds:
-    if not args.text_files_only:
+    if not args.text_files_only and not args.no_output:
         run_command(['cp', 'compress_and_diff.sh', str(cloud_image_directory)], args.dry_run)
         run_command(['sh', 'compress_and_diff.sh'], cwd=cloud_image_directory, dry_run=args.dry_run)
 
         run_command(['cp', 'compress_and_diff.sh', str(resized_cloud_image_directory)], args.dry_run)
         run_command(['sh', 'compress_and_diff.sh'], cwd=resized_cloud_image_directory, dry_run=args.dry_run)
-
-    # run_command(f"sh merge_clouds.sh {folder.name}", args.dry_run)
-    run_command(['sh', 'merge.sh', '-s', str(cloud_image_directory)+'/', '-d', str(cloud_merge_directory), '-t' if args.dry_run else '', '-x' if args.delete_after_merge else ''], dry_run=args.dry_run)
+    
+    if not args.skip_merge:
+        # run_command(f"sh merge_clouds.sh {folder.name}", args.dry_run)
+        run_command(['sh', 'merge.sh', '-s', str(cloud_image_directory)+'/', '-d', str(cloud_merge_directory), '-t' if args.dry_run else '', '-x' if args.delete_after_merge else ''], dry_run=args.dry_run)
 
 # subset the data
 if (not args.skip_subset) and (not args.use_subset) and (not args.text_files_only):

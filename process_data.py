@@ -40,6 +40,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--text-files-only', help='Only process text files', action='store_true')
     parser.add_argument('--debug', help='Enable debug logging', action='store_true')
     parser.add_argument('--cloud-cmap', help='Set color map for clouds cover. Default is solid grey')
+    parser.add_argument('--no-output', action='store_true', help='Do not create text and image files')
     return parser.parse_args()
 
 def setup_logging(debug: bool) -> None:
@@ -118,10 +119,14 @@ def combine_data(input_data: List[xr.Dataset],
     return final_data, support_data
 
 
-def output_text_data(rechunk: xr.DataArray, geospatial_bounds: List[dict], name: str, output: Path, suffix: str) -> None:
+def output_text_data(rechunk: xr.DataArray, geospatial_bounds: List[dict], name: str, output: Path, suffix: str, no_output: bool) -> None:
     """
     Output the bounds data to files.
     """
+    if no_output:
+        logging.info('No output flag is set. Skipping text data output.')
+        return
+
     logging.info('Bounds of the data')
     bounds = get_bounds(rechunk)
     with open(output / f'bounds_{name}.npy', 'w') as f:
@@ -151,7 +156,11 @@ def output_text_data(rechunk: xr.DataArray, geospatial_bounds: List[dict], name:
     logging.debug(f"Output text data to {output}")
 
 def process_and_save_chunk(chunk: xr.DataArray, cloud_data: xr.DataArray, cmap: LinearSegmentedColormap, vmin: float, vmax: float, output: Path,
-                           suffix: str, bounds, reproject=True, method='average', cloud_threshold: float = 0.5, cloud_output = False) -> None:
+                           suffix: str, bounds, reproject=True, method='average', cloud_threshold: float = 0.5, cloud_output = False, no_output=False) -> None:
+    if no_output:
+        logging.info('No output flag is set. Skipping image saving.')
+        return
+
     logging.debug(f"Processing chunk with time {chunk.time.values}")
     
     # Reproject data without applying cloud mask
@@ -189,7 +198,7 @@ def process_new_data(dataarray: xr.DataArray, cloud_data: xr.DataArray, geospati
 
     logging.debug("Rechunking data")
     rechunk = dataarray.chunk(chunks={"longitude": 188, "latitude": 373, "time": 1})
-    output_text_data(rechunk, geospatial_bounds, name, output, suffix)
+    output_text_data(rechunk, geospatial_bounds, name, output, suffix, args.no_output)
 
     if args.text_files_only:
         return
@@ -199,7 +208,7 @@ def process_new_data(dataarray: xr.DataArray, cloud_data: xr.DataArray, geospati
     def process_chunk(time):
         chunk = rechunk.sel(time=time)
         cloud_chunk = cloud_data.sel(time=time)
-        process_and_save_chunk(chunk, cloud_chunk, cmap, vmin, vmax, output, suffix, get_bounds(chunk, pairs=True), reproject, method, cloud_threshold, cloud_output = cloud_output)
+        process_and_save_chunk(chunk, cloud_chunk, cmap, vmin, vmax, output, suffix, get_bounds(chunk, pairs=True), reproject, method, cloud_threshold, cloud_output = cloud_output, no_output=args.no_output)
 
     if not args.singlethreaded and len(rechunk.time) >= 3:
         logging.debug('Using ThreadPool')

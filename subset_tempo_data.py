@@ -76,7 +76,7 @@ variables_to_keep = [
     "latitude",
     "longitude",
     "product/vertical_column_troposphere",
-    # "product/vertical_column_troposphere_uncertainty",
+    "product/vertical_column_troposphere_uncertainty",
     "product/main_data_quality_flag",
     "support_data/eff_cloud_fraction",
     # "suppord_data/snow_ice_fraction",

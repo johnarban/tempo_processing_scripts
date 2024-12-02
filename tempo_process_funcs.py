@@ -284,7 +284,7 @@ def save_image(
     vmax: float,
     filename: Path | str,
 ) -> None:
-    logging.info(f"Saving image to: {filename}")
+    logging.debug(f"Saving image to: {filename}")
     mimg.imsave(
         fname=filename,
         arr=projected_data,

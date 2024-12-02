@@ -144,7 +144,7 @@ def get_input_files(
 
 
 def process_files(
-    input_files: List[str], quality_flag: str, sample: bool, process_func
+    input_files: List[str], quality_flag: str, sample: bool
 ) -> Tuple[List[xr.Dataset], List[str], List[dict], List[xr.Dataset]]:
     """
     Process input files and extract relevant data.
@@ -153,7 +153,7 @@ def process_files(
         input_files = input_files[0:10]
     input_data, datetimes, geospatial_bounds, support = [], [], [], []
     for input_file in tqdm.tqdm(input_files, desc="Reading in data"):
-        out = process_func(input_file, quality_flag)
+        out = process_file(input_file, quality_flag)
         input_data.append(out[0])
         datetimes.append(out[1])
         geospatial_bounds.append(out[2].geospatial_bounds)
@@ -378,7 +378,7 @@ def main() -> None:
         return
 
     input_data, datetimes, geospatial_bounds, support = process_files(
-        input_files, args.quality, args.sample, process_file
+        input_files, args.quality, args.sample
     )
 
     final_data, support_data = combine_data(input_data, support)

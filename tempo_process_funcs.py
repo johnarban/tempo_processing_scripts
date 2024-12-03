@@ -36,9 +36,17 @@ from shapely.ops import transform
 
 import logging
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+def setup_logging(debug: bool) -> None:
+    """
+    Set up logging configuration.
+    """
+    level = logging.DEBUG if debug else logging.INFO
+    format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", '%H:%M')
+    logging.StreamHandler().setFormatter(format)
+    logging.basicConfig(level=level)
+    
+    
+setup_logging(debug=False)
 
 directory = ["./2023m1103", "./2023m1101", "./2024m0328"][2]
 sample = False
@@ -98,6 +106,10 @@ def process_file(
         datetimes = datetime.strptime(datetimestring, "%Y%m%dT%H%M%SZ")
     except ValueError:
         datetimes = None
+        
+    if not Path(input_file).exists():
+        logging.error(f"File {input_file} does not exist")
+        raise FileNotFoundError(f"File {input_file} does not exist")
     coords = xr.open_dataset(input_file, engine="h5netcdf", chunks="auto")
     product = xr.open_dataset(
         input_file, engine="h5netcdf", chunks="auto", group="product"

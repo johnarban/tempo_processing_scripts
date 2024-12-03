@@ -85,7 +85,8 @@ if not skip_download:
         exit(0)
 
 folder = Path(f'./{data_dir}')
-folder.mkdir(exist_ok=True)
+if not folder.exists():
+    folder.mkdir(exist_ok=False)
 
 if not skip_download:
     with open(folder / 'download_list.txt', 'w') as f:

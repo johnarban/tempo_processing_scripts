@@ -36,13 +36,13 @@ def get_date_limits():
     last_time = times[-1] / 1000
     last_time_dt = dt.datetime.fromtimestamp(last_time, tz=timezone.utc)
 
-    print(f"Last time: {last_time_dt.strftime(CMR_DATE_FMT)}")
+    logging.debug(f"Last time: {last_time_dt.strftime(CMR_DATE_FMT)}")
 
     # Define the temporal range for the search
     start_date = last_time_dt
     end_date = dt.datetime.now(tz=timezone.utc)
-    print(f"Search Start Date: {start_date.strftime(CMR_DATE_FMT)}")
-    print(f"Search End Date: {end_date.strftime(CMR_DATE_FMT)}")
+    logging.info(f"Search Start Date: {start_date.strftime(CMR_DATE_FMT)}")
+    logging.info(f"Search End Date: {end_date.strftime(CMR_DATE_FMT)}")
 
     return start_date, end_date, last_time_dt
 
@@ -58,7 +58,7 @@ def search_for_granules(
     temporal_str = (
         start_date.strftime(CMR_DATE_FMT) + "," + end_date.strftime(CMR_DATE_FMT)
     )
-    print(f"Temporal String: {temporal_str}")
+    logging.debug(f"Temporal String: {temporal_str}")
 
     cmr_url = "https://cmr.earthdata.nasa.gov/search/granules"
 
@@ -80,13 +80,13 @@ def search_for_granules(
     if verbose:
         encoded_url = cmr_response.url
         decoded_url = unquote(encoded_url)
-        print(f"CMR Request URL: {decoded_url}")
+        logging.debug(f"CMR Request URL: {decoded_url}")
 
     granules = cmr_response.json()["feed"]["entry"]
 
     granule_urls = []
 
-    print(f"Found {len(granules)} granules in search")
+    logging.info(f"Found {len(granules)} granules in search")
 
     for granule in granules:
         # item = next((item['href'] for item in granule['links'] if "opendap" in item["href"]), None)
@@ -100,13 +100,13 @@ def search_for_granules(
         )
         # print(urlTimeNearOrEarlier(item, last_downloaded_time), last_downloaded_time, item)
         if item != None and not urlTimeNearOrEarlier(item, last_downloaded_time):
-            print("added")
+            logging.debug("added")
             granule_urls.append(item)
 
-    print(f"Found {len(granule_urls)} new granules")
+    logging.info(f"Found {len(granule_urls)} new granules")
 
     if len(granule_urls) == 0:
-        print("No new data found")
+        logging.info("No new data found")
         exit(0)
     return granule_urls
 
@@ -115,5 +115,5 @@ def urlTimeNearOrEarlier(urlString, time2):
     time1 = datetime.strptime(urlString.split("_")[-2], "%Y%m%dT%H%M%SZ").replace(
         tzinfo=timezone.utc
     )
-    print(time1, time2)
+    # print(time1, time2)
     return times_are_close(time2, time1, timedelta(minutes=1))

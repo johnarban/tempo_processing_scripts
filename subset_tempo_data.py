@@ -71,7 +71,8 @@ if args.output == "":
     fileout = filein.with_name(filein.stem + "_subset" + filein.suffix)
 elif Path(args.output).is_dir():
     # create the directory if it does not exist
-    Path(args.output).mkdir(parents=True, exist_ok=True)
+    if not Path(args.output).exists():
+        Path(args.output).mkdir(parents=True, exist_ok=False)
     fileout = Path(args.output) / filein.name
 else:
     fileout = Path(args.output)

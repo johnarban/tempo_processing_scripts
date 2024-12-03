@@ -10,13 +10,16 @@ import sys
 import logging
 import yaml
 
+VERBOSE = True
 
 def setup_logging(debug: bool) -> None:
     """
     Set up logging configuration.
     """
     level = logging.DEBUG if debug else logging.INFO
-    logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s")
+    format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", '%H:%M')
+    logging.StreamHandler().setFormatter(format)
+    logging.basicConfig(level=level)
 
 
 def ensure_directory(path: Path | str, skip=False):
@@ -27,6 +30,7 @@ def ensure_directory(path: Path | str, skip=False):
     # if directory does not exist, create it
     path = Path(path)
     if path.is_file():
+        raise ValueError(f"Path is a file: {path}")
         path.unlink()
         path.mkdir()
     elif not path.exists():
@@ -50,9 +54,9 @@ def check_cp_command(command):
 
 def run_command(command, dry_run=False, run_anyway=False, cwd: Path | str = "."):
     if dry_run:
-        logging.info(f'DRY RUN: {" ".join(command)} (cwd: {cwd or "."})')
+        logging.info(f'{" ".join(map(str,command))} (cwd: {cwd or "."})')
     if (not dry_run) or run_anyway:
-        logging.info(f'Running: {" ".join(command)} (cwd: {cwd or "."})')
+        logging.info(f'Running: {" ".join(map(str,command))} (cwd: {cwd or "."})')
 
         check_cp_command(command)
 
@@ -72,7 +76,8 @@ def setup_data_folder(data_dir=None):
 
         else:
             folder = Path(data_dir)
-        folder.mkdir(exist_ok=True)
+        if not folder.exists():
+            folder.mkdir(exist_ok=False)
     else:
         today = datetime.now().strftime("%b_%d").lower()
         folder = Path(f"./{today}")
@@ -80,7 +85,8 @@ def setup_data_folder(data_dir=None):
         aToZ = (letter for letter in "abcdefghijklmnopqrstuvwxyz")
         while folder.exists():
             folder = Path(f"./{today}{next(aToZ)}")
-        folder.mkdir(exist_ok=False)
+        if not folder.exists():
+            folder.mkdir(exist_ok=False)
     logging.debug(f"Data folder set up: {folder}")
     return folder
 
@@ -188,7 +194,7 @@ parser.add_argument(
 )
 # add output name option
 parser.add_argument(
-    "--output-name",
+    "--output-dir",
     type=str,
     help="Output name for images and text files",
     default=None,
@@ -246,12 +252,21 @@ from typing import cast
 
 args.data_dir = make_absolute(args.data_dir) if args.data_dir else None
 args.merge_dir = make_absolute(args.merge_dir)
-args.output_name = make_absolute(args.output_name) if args.output_name else None
+args.output_dir = make_absolute(args.output_dir) if args.output_dir else None
 
 # Print out the directories
-print(f"Data directory: {args.data_dir}")
-print(f"Merge directory: {args.merge_dir}")
-print(f"Output name: {args.output_name}")
+# logging.info(f"Data directory: {args.data_dir}")
+# logging.info(f"Merge directory: {args.merge_dir}")
+# logging.info(f"Output name: {args.output_dir}")
+# Create log summart of the what this script will do
+# 
+logging.info("Log Summary:")
+logging.info(f"Root directory: {root_dir}")
+logging.info(f"Data directory: {args.data_dir}")
+logging.info(f"Merge directory: {args.merge_dir}")
+logging.info(f"Output directory: {args.output_dir}")
+logging.info(f"Skip subset: {args.skip_subset}")
+logging.info(f"Name: {args.name}")
 # Print out the directories
 
 
@@ -272,19 +287,21 @@ run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 folder = setup_data_folder(data_dir)
 
 # Setup output paths
-output_name = args.output_name if args.output_name else folder.name
+output_dir = args.output_dir if args.output_dir else folder.name
 download_list = folder / "download_list.txt"
 download_script_template = Path("download_template.sh")
 download_script = folder / "download_template.sh"
 
-image_directory = make_absolute(f"{output_name}/images")
-resized_image_directory = make_absolute(f"{output_name}/images/resized_images")
+if not Path(output_dir).exists():
+    Path(output_dir).mkdir(parents=True, exist_ok=False)
+image_directory = make_absolute(f"{output_dir}/images")
+resized_image_directory = make_absolute(f"{output_dir}/images/resized_images")
 ensure_directory(image_directory, args.dry_run)
 ensure_directory(resized_image_directory, args.dry_run)
 
-cloud_image_directory = make_absolute(f"{output_name}/cloud_images")
+cloud_image_directory = make_absolute(f"{output_dir}/cloud_images")
 resized_cloud_image_directory = make_absolute(
-    f"{output_name}/cloud_images/resized_images"
+    f"{output_dir}/cloud_images/resized_images"
 )
 ensure_directory(cloud_image_directory, args.dry_run)
 ensure_directory(resized_cloud_image_directory, args.dry_run)
@@ -349,6 +366,11 @@ if (
 ):
     logging.info("No new data downloaded")
     exit(0)
+if (len(nc_files) > 0) or (len(subset_nc_files) > 0):
+    if args.use_subset:
+        logging.info(f"Using subsetted data: {len(subset_nc_files)} files")
+    else:
+        logging.info(f"Using {len(nc_files)} files")
 
 
 if not args.merge_only:
@@ -376,7 +398,7 @@ if not args.merge_only:
     process_args += ["--text-files-only"] if args.text_files_only else []
     # set name to folder.name if name is not set
     process_args += (
-        ["--name", output_name] if args.name is None else ["--name", args.name]
+        ["--name", output_dir] if args.name is None else ["--name", args.name]
     )
     process_args += ["--debug"] if (args.verbose or args.dry_run) else []
     process_args += ["--use-input-filename"] if args.use_input_filename else []
@@ -388,19 +410,20 @@ if not args.merge_only:
 
 # Compress & Merge NO2 Data
 if not args.text_files_only and not args.no_output:
-    run_command(["cp", "compress_and_diff.sh", str(image_directory)], args.dry_run)
-    run_command(
-        ["cp", "compress_and_diff.sh", str(resized_image_directory)], args.dry_run
-    )
+    # run_command(["cp", "compress_and_diff.sh", str(image_directory)], args.dry_run)
+    # run_command(
+    #     ["cp", "compress_and_diff.sh", str(resized_image_directory)], args.dry_run
+    # )
 
-    run_command(
-        ["sh", "compress_and_diff.sh"], cwd=image_directory, dry_run=args.dry_run
-    )
-    run_command(
-        ["sh", "compress_and_diff.sh"],
-        cwd=resized_image_directory,
-        dry_run=args.dry_run,
-    )
+    # run_command(
+    #     ["sh", "compress_and_diff.sh"], cwd=image_directory, dry_run=args.dry_run
+    # )
+    # run_command(
+    #     ["sh", "compress_and_diff.sh"],
+    #     cwd=resized_image_directory,
+    #     dry_run=args.dry_run,
+    # )
+    pass
 
 if not args.skip_merge:
     # run_command(f'sh merge.sh {folder.name}', args.dry_run)
@@ -415,28 +438,31 @@ if not args.skip_merge:
         ],
         dry_run=args.dry_run,
     )
+else:
+    logging.info("Skipping merge")
 
 # Compress & Merge Cloud Data
 if not args.skip_clouds:
     if not args.text_files_only and not args.no_output:
-        run_command(
-            ["cp", "compress_and_diff.sh", str(cloud_image_directory)], args.dry_run
-        )
-        run_command(
-            ["sh", "compress_and_diff.sh"],
-            cwd=cloud_image_directory,
-            dry_run=args.dry_run,
-        )
+        # run_command(
+        #     ["cp", "compress_and_diff.sh", str(cloud_image_directory)], args.dry_run
+        # )
+        # run_command(
+        #     ["sh", "compress_and_diff.sh"],
+        #     cwd=cloud_image_directory,
+        #     dry_run=args.dry_run,
+        # )
 
-        run_command(
-            ["cp", "compress_and_diff.sh", str(resized_cloud_image_directory)],
-            args.dry_run,
-        )
-        run_command(
-            ["sh", "compress_and_diff.sh"],
-            cwd=resized_cloud_image_directory,
-            dry_run=args.dry_run,
-        )
+        # run_command(
+        #     ["cp", "compress_and_diff.sh", str(resized_cloud_image_directory)],
+        #     args.dry_run,
+        # )
+        # run_command(
+        #     ["sh", "compress_and_diff.sh"],
+        #     cwd=resized_cloud_image_directory,
+        #     dry_run=args.dry_run,
+        # )
+        pass
 
     if not args.skip_merge:
         # run_command(f"sh merge_clouds.sh {folder.name}", args.dry_run)
@@ -462,7 +488,7 @@ if args.dry_run:
     import shutil
 
     if Path(folder).exists():
-        shutil.rmtree(folder)
+        # shutil.rmtree(folder)
         logging.info(f"Removed output directory: {folder}")
 
 

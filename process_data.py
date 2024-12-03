@@ -27,7 +27,7 @@ cloud_cmap = LinearSegmentedColormap.from_list(
 )
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(levelname)s - %(message)s"
 )
 
 
@@ -120,11 +120,13 @@ def setup_directories(
 
     output = Path(args.output)
     if not dry_run:
-        output.mkdir(parents=True, exist_ok=True)
+        if not output.exists():
+            output.mkdir(parents=True, exist_ok=False)
 
     cloud_output = Path(args.cloud_dir)
     if not dry_run:
-        cloud_output.mkdir(parents=True, exist_ok=True)
+        if not cloud_output.exists():
+            cloud_output.mkdir(parents=True, exist_ok=False)
 
     logging.debug(f"Directories set up: {directory}, {output}, {cloud_output}")
     return directory, output, cloud_output
@@ -195,9 +197,14 @@ def output_text_data(
     if no_output:
         logging.info("No output flag is set. Skipping text data output.")
         return
+    
+    logging.info(f"Outputting text data to {output} with name {name} and suffix {suffix}")
 
-    logging.info("Bounds of the data")
+    logging.debug("Bounds of the data:")
     bounds = get_bounds(rechunk)
+    if not output.exists():
+        raise FileNotFoundError(f"Output directory {output} does not exist")
+    logging.info(f"Outputting bounds to {output} as bounds_{name}.npy")
     with open(output / f"bounds_{name}.npy", "w") as f:
         lonmin, lonmax, latmin, latmax = bounds
         lines = [
@@ -206,7 +213,7 @@ def output_text_data(
             f"lat_min: {latmin}",
             f"lat_max: {latmax}",
         ]
-        logging.info("\n".join(lines))
+        logging.info(f"latmin, lonmin, latmax, lonmax: {latmin:0.2f}, {lonmin:0.2f}, {latmax:0.2f}, {lonmax:0.2f}")
         f.write("\n".join(lines))
         LLatLng = "L.LatLng({},{})"
         LLatLngBounds = "L.LatLngBounds({}, {})"
@@ -221,7 +228,7 @@ def output_text_data(
     with open(output / f"bounds_{name}_geojson.json", "w") as f:
         json.dump(fors, f)
 
-    logging.info(f"Saving times to {output} as times_{name}.npy")
+    logging.debug(f"Saving times to {output} as times_{name}.npy")
     times = list(sorted([chunk_time_to_jstime(ch) for ch in rechunk]))
 
     with open(output / f"times_{name}{suffix}.npy", "w") as f:
@@ -277,7 +284,8 @@ def process_and_save_chunk(
 
     # Save half resolution image
     half_filename = output / "resized_images" / chunk_time_to_fname(chunk, suffix)
-    half_filename.parent.mkdir(parents=True, exist_ok=True)
+    if not half_filename.parent.exists():
+        half_filename.parent.mkdir(parents=True, exist_ok=False)
     save_image(half_res_masked, cmap, vmin, vmax, half_filename)
     logging.debug(f"Saved half resolution image to {half_filename}")
 
@@ -354,7 +362,11 @@ def main() -> None:
     input_files = get_input_files(directory, args.input, args.level, args.version)
 
     if args.name is None:
-        args.name = directory.resolve().name
+        print("Name not provided")
+        args.name = directory.resolve().parts[-1]
+        # get the last part of the path
+    
+    logging.info(f"\n==========\nName: {args.name}")
 
     logging.info(
         f"""

@@ -14,4 +14,10 @@ name: null
 merge_dir: "~/github/tempo-data-holdings"
 merge_only: false
 delete_after_merge: false
-output_name: null
+output_dir: null
+start_date: null
+end_date: null
+use_input_filename: false
+no_output: false
+skip_compress: false
+skip_process: false

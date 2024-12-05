@@ -14,6 +14,7 @@ from matplotlib.colors import LinearSegmentedColormap
 # set datetime to default to UTC
 from colormap import svs_tempo_cmap
 from typing import Tuple
+import io
 
 
 import matplotlib.image as mimg
@@ -33,6 +34,7 @@ import json
 import shapely
 from shapely import Polygon
 from shapely.ops import transform
+from get_tempo_data_utils import run_command
 
 import logging
 
@@ -289,6 +291,24 @@ def reproject_data(
     return full_res, half_res
 
 
+# def save_image(
+#     projected_data: np.ndarray,
+#     cmap: LinearSegmentedColormap | str,
+#     vmin: float,
+#     vmax: float,
+#     filename: Path | str,
+# ) -> None:
+#     logging.debug(f"Saving image to: {filename}")
+#     mimg.imsave(
+#         fname=filename,
+#         arr=projected_data,
+#         cmap=cmap,
+#         vmin=vmin,
+#         vmax=vmax,
+#         origin="upper",
+#     )
+#     logging.debug("Image saved")
+
 def save_image(
     projected_data: np.ndarray,
     cmap: LinearSegmentedColormap | str,
@@ -296,15 +316,82 @@ def save_image(
     vmax: float,
     filename: Path | str,
 ) -> None:
+    save_image_compressed_command(projected_data, cmap, vmin, vmax, filename)
+
+
+def save_image_compressed_buffer(
+    projected_data: np.ndarray,
+    cmap: LinearSegmentedColormap | str,
+    vmin: float,
+    vmax: float,
+    filename: Path | str,
+) -> None:
     logging.debug(f"Saving image to: {filename}")
+    buffer = io.BytesIO()
     mimg.imsave(
-        fname=filename,
+        fname=buffer,
         arr=projected_data,
         cmap=cmap,
         vmin=vmin,
         vmax=vmax,
         origin="upper",
+        format="png"
     )
+    buffer.seek(0)
+    with Image.open(buffer) as img:
+        compressed_buffer = io.BytesIO()
+        img = img.convert("P", palette=Image.ADAPTIVE, colors=256)
+        img.save(compressed_buffer, format="PNG", optimize=True)
+        compressed_buffer.seek(0)
+        with open(filename, "wb") as f:
+            f.write(compressed_buffer.getvalue())
+    
+    logging.debug("Image saved")
+    
+def save_image_compressed_command(
+    projected_data: np.ndarray,
+    cmap: LinearSegmentedColormap | str,
+    vmin: float,
+    vmax: float,
+    filename: Path | str,
+    compression_filter: int = 4,
+    compression_level: int = 9,
+    compression_strategy: int = 1,
+) -> None:
+    logging.debug(f"Saving image to: {filename}")
+    
+    if Path(filename).exists():
+        logging.debug(f"File {filename} already exists. Skipping creation.")
+    else:
+        mimg.imsave(
+            fname=filename,
+            arr=projected_data,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            origin="upper",
+            format="png"
+        )
+    # use the imagemagick command line tool to compress the image
+    # convert "$file" -define png:compression-filter=5 -define png:compression-level=1 -define png:compression-strategy=3 "$file"
+    outfilename = str(filename).replace(".png", f"_{compression_filter}_{compression_level}_{compression_strategy}.png")
+    
+    if Path(outfilename).exists():
+        logging.debug(f"Compressed file {outfilename} already exists. Skipping creation.")
+        return
+    
+    run_command(
+        [
+            "convert", str(filename),
+            "-define", f"png:compression-filter={compression_filter}",
+            "-define", f"png:compression-level={compression_level}",
+            "-define", f"png:compression-strategy={compression_strategy}",
+            outfilename
+        ],
+        dry_run=False,
+        background=True
+    )
+    
     logging.debug("Image saved")
 
 

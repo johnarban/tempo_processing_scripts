@@ -43,16 +43,10 @@ def parse_arguments() -> argparse.Namespace:
         help="Directory containing TEMPO data",
         default="./data",
     )
-    parser.add_argument(
-        "-o", "--output", type=str, help="Output directory for images", default="."
-    )
+    parser.add_argument("-o", "--output", type=str, help="Output directory for images", default=".")
     parser.add_argument("--do-clouds", action="store_true", help="Process cloud data")
-    parser.add_argument(
-        "--cloud-dir", type=str, help="Output directory for cloud images", default="."
-    )
-    parser.add_argument(
-        "-q", "--quality", type=str, help="Quality flag for data", default="svs"
-    )
+    parser.add_argument("--cloud-dir", type=str, help="Output directory for cloud images", default=".")
+    parser.add_argument("-q", "--quality", type=str, help="Quality flag for data", default="svs")
     parser.add_argument("-s", "--sample", type=bool, help="Sample data", default=False)
     parser.add_argument(
         "-i",
@@ -63,38 +57,22 @@ def parse_arguments() -> argparse.Namespace:
         help="Input files pattern",
         default=None,
     )
-    parser.add_argument(
-        "-n", "--name", type=str, help="Name for output files", default=None
-    )
+    parser.add_argument("-n", "--name", type=str, help="Name for output files", default=None)
     parser.add_argument("-v", "--version", type=str, help="TEMPO version", default="1")
     parser.add_argument("-l", "--level", type=str, help="TEMPO time", default="3")
-    parser.add_argument(
-        "--suffix", type=str, help="A suffix to append to filename", default=""
-    )
-    parser.add_argument(
-        "--singlethreaded", help="Create singlethreaded only", action="store_true"
-    )
+    parser.add_argument("--suffix", type=str, help="A suffix to append to filename", default="")
+    parser.add_argument("--singlethreaded", help="Create singlethreaded only", action="store_true")
     parser.add_argument(
         "--dry-run",
         help="Print the commands that would be run, but do not run them",
         action="store_true",
     )
-    parser.add_argument(
-        "--no-reproject", help="Do not reproject the images", action="store_true"
-    )
-    parser.add_argument(
-        "--method", type=str, help="Method to use for reprojection", default="average"
-    )
-    parser.add_argument(
-        "--text-files-only", help="Only process text files", action="store_true"
-    )
+    parser.add_argument("--no-reproject", help="Do not reproject the images", action="store_true")
+    parser.add_argument("--method", type=str, help="Method to use for reprojection", default="average")
+    parser.add_argument("--text-files-only", help="Only process text files", action="store_true")
     parser.add_argument("--debug", help="Enable debug logging", action="store_true")
-    parser.add_argument(
-        "--cloud-cmap", help="Set color map for clouds cover. Default is solid grey"
-    )
-    parser.add_argument(
-        "--no-output", action="store_true", help="Do not create text and image files"
-    )
+    parser.add_argument("--cloud-cmap", help="Set color map for clouds cover. Default is solid grey")
+    parser.add_argument("--no-output", action="store_true", help="Do not create text and image files")
     return parser.parse_args()
 
 
@@ -197,7 +175,7 @@ def output_text_data(
     if no_output:
         logging.info("No output flag is set. Skipping text data output.")
         return
-    
+
     logging.info(f"Outputting text data to {output} with name {name} and suffix {suffix}")
 
     logging.debug("Bounds of the data:")
@@ -365,7 +343,7 @@ def main() -> None:
         print("Name not provided")
         args.name = directory.resolve().parts[-1]
         # get the last part of the path
-    
+
     logging.info(f"\n==========\nName: {args.name}")
 
     logging.info(

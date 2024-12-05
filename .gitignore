@@ -16,3 +16,4 @@
 !tempo_process_funcs.py
 !default_config.yaml
 !run_backlog.sh
+!logger.py

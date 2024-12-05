@@ -36,19 +36,11 @@ from shapely import Polygon
 from shapely.ops import transform
 from get_tempo_data_utils import run_command
 
-import logging
+from logger import setup_logging
 
-def setup_logging(debug: bool) -> None:
-    """
-    Set up logging configuration.
-    """
-    level = logging.DEBUG if debug else logging.INFO
-    format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", '%H:%M')
-    logging.StreamHandler().setFormatter(format)
-    logging.basicConfig(level=level)
-    
-    
-setup_logging(debug=False)
+logger = setup_logging(debug=True, name="process_funcs")
+
+
 
 directory = ["./2023m1103", "./2023m1101", "./2024m0328"][2]
 sample = False
@@ -63,7 +55,7 @@ input_files = glob.glob(f"{directory}/TEMPO_NO2_L3_V0*_S*.nc")
 def quality_mask(
     geoloc: xr.Dataset, product: xr.Dataset, support: xr.Dataset, quality_flag
 ):
-    logging.debug(f"Applying quality mask with flag: {quality_flag}")
+    logger.debug(f"Applying quality mask with flag: {quality_flag}")
     if quality_flag == "high":
         high_quality = (geoloc["solar_zenith_angle"] < 80) & (
             product["main_data_quality_flag"] == 0
@@ -88,7 +80,7 @@ def quality_mask(
 
 
 def cloud_cover_mask(quality_flag):
-    logging.debug(f"Getting cloud threshold for quality flag: {quality_flag}")
+    logger.debug(f"Getting cloud threshold for quality flag: {quality_flag}")
     if quality_flag == "high":
         return 0.2
     elif quality_flag == "medium":
@@ -102,7 +94,7 @@ def cloud_cover_mask(quality_flag):
 def process_file(
     input_file: str, quality_flag: str = "svs"
 ) -> tuple[xr.Dataset, datetime | None, xr.Dataset, xr.Dataset]:
-    logging.debug(f"Processing file: {input_file}")
+    logger.debug(f"Processing file: {input_file}")
     datetimestring = input_file.split("_")[-2]
     try:
         datetimes = datetime.strptime(datetimestring, "%Y%m%dT%H%M%SZ")
@@ -110,7 +102,7 @@ def process_file(
         datetimes = None
         
     if not Path(input_file).exists():
-        logging.error(f"File {input_file} does not exist")
+        logger.error(f"File {input_file} does not exist")
         raise FileNotFoundError(f"File {input_file} does not exist")
     coords = xr.open_dataset(input_file, engine="h5netcdf", chunks="auto")
     product = xr.open_dataset(
@@ -130,19 +122,19 @@ def process_file(
     # cloud_mask = cloud_quality_mask(geoloc, product, support, quality_flag)
     masked_support = support.where(mask)
 
-    logging.debug(f"Processed file: {input_file}")
+    logger.debug(f"Processed file: {input_file}")
     return masked_product, datetimes, coords, masked_support
 
 
 def get_field_of_regards(geospatial_bounds):
-    logging.debug("Getting field of regards")
+    logger.debug("Getting field of regards")
     shape = transform(lambda x, y, *args: (y, x), shapely.from_wkt(geospatial_bounds))
     json_spec = shapely.to_geojson(shape)
     return {"type": "GeometryCollection", "geometries": [json.loads(json_spec)]}
 
 
 def get_bounds(chunk: xr.DataArray, pairs=False, bbox=False):
-    logging.debug("Getting bounds of the data chunk")
+    logger.debug("Getting bounds of the data chunk")
     """
     Get the bounds of the data chunk
     
@@ -172,7 +164,7 @@ def get_bounds(chunk: xr.DataArray, pairs=False, bbox=False):
 def project_array(
     array, bounds, refinement: float = 1, projection="EPSG:3857", method="nearest"
 ):
-    logging.debug(f"Projecting array with method: {method}")
+    logger.debug(f"Projecting array with method: {method}")
     """
     from Jonathan Foster
     Project a numpy array defined in WGS84 coordinates to Mercator Web coordinate system
@@ -204,7 +196,7 @@ def project_array(
             src_crs, dst_crs, nlon, nlat, *bbox, dst_width=nlon2, dst_height=nlat2
         )
         dst_shape = height, width
-        destination = np.zeros(dst_shape)
+        destination = np.zeros(dst_shape) # type: ignore
 
         if method == "average":
             method = Resampling.average
@@ -230,12 +222,12 @@ def project_array(
             dst_crs=dst_crs,
             resampling=method,
         )
-        logging.debug("Projection completed")
+        logger.debug("Projection completed")
         return destination
 
 
 def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
-    logging.debug(f"Saving grayscale image with transparency to: {filename}")
+    logger.debug(f"Saving grayscale image with transparency to: {filename}")
     # Create an alpha channel where NaNs will be 0 (transparent) and others will be 255 (opaque)
     alpha_channel = np.where(np.isnan(data), 0, 255).astype(np.uint8)
 
@@ -264,14 +256,14 @@ def save_grayscale_with_transparency(data, filename, vmin=None, vmax=None):
 
     # Save the RGBA image
     rgba_img.save(filename)
-    logging.debug("Grayscale image saved")
+    logger.debug("Grayscale image saved")
     return rgba_img
 
 
 def reproject_data(
     xarray: xr.DataArray, bounds, reproject=True, method="average"
 ) -> Tuple[np.ndarray, np.ndarray]:
-    logging.debug("Reprojecting data")
+    logger.debug("Reprojecting data")
     og_data = xarray.to_numpy()
 
     if reproject:
@@ -287,7 +279,7 @@ def reproject_data(
         og_data, bounds, refinement=0.5, projection=projection, method=method
     )
 
-    logging.debug("Reprojection completed")
+    logger.debug("Reprojection completed")
     return full_res, half_res
 
 
@@ -298,7 +290,7 @@ def reproject_data(
 #     vmax: float,
 #     filename: Path | str,
 # ) -> None:
-#     logging.debug(f"Saving image to: {filename}")
+#     logger.debug(f"Saving image to: {filename}")
 #     mimg.imsave(
 #         fname=filename,
 #         arr=projected_data,
@@ -307,7 +299,7 @@ def reproject_data(
 #         vmax=vmax,
 #         origin="upper",
 #     )
-#     logging.debug("Image saved")
+#     logger.debug("Image saved")
 
 def save_image(
     projected_data: np.ndarray,
@@ -326,7 +318,7 @@ def save_image_compressed_buffer(
     vmax: float,
     filename: Path | str,
 ) -> None:
-    logging.debug(f"Saving image to: {filename}")
+    logger.debug(f"Saving image to: {filename}")
     buffer = io.BytesIO()
     mimg.imsave(
         fname=buffer,
@@ -346,7 +338,7 @@ def save_image_compressed_buffer(
         with open(filename, "wb") as f:
             f.write(compressed_buffer.getvalue())
     
-    logging.debug("Image saved")
+    logger.debug("Image saved")
     
 def save_image_compressed_command(
     projected_data: np.ndarray,
@@ -358,10 +350,10 @@ def save_image_compressed_command(
     compression_level: int = 9,
     compression_strategy: int = 1,
 ) -> None:
-    logging.debug(f"Saving image to: {filename}")
+    logger.debug(f"Saving image to: {filename}")
     
     if Path(filename).exists():
-        logging.debug(f"File {filename} already exists. Skipping creation.")
+        logger.debug(f"File {filename} already exists. Skipping creation.")
     else:
         mimg.imsave(
             fname=filename,
@@ -377,7 +369,7 @@ def save_image_compressed_command(
     outfilename = str(filename).replace(".png", f"_{compression_filter}_{compression_level}_{compression_strategy}.png")
     
     if Path(outfilename).exists():
-        logging.debug(f"Compressed file {outfilename} already exists. Skipping creation.")
+        logger.debug(f"Compressed file {outfilename} already exists. Skipping creation.")
         return
     
     run_command(
@@ -392,7 +384,7 @@ def save_image_compressed_command(
         background=True
     )
     
-    logging.debug("Image saved")
+    logger.debug("Image saved")
 
 
 # Modify the existing plot_image function if needed
@@ -404,7 +396,7 @@ def plot_image(
     filename: Path | str = "out.png",
     greyscale=False,
 ):
-    logging.debug(f"Plotting image to: {filename}")
+    logger.debug(f"Plotting image to: {filename}")
     if cmap is not None:
         save_image(projected_data, cmap, vmin, vmax, filename)
     else:
@@ -412,19 +404,19 @@ def plot_image(
             save_grayscale_with_transparency(projected_data, filename, vmin, vmax)
         else:
             save_image(projected_data, "gray", vmin, vmax, filename)
-    logging.debug("Image plotted")
+    logger.debug("Image plotted")
 
 
 # file name format is tempo_2024-03-28T12h24m.png
 def chunk_time_to_fname(chunck: xr.DataArray, suffix="") -> str:
-    logging.debug("Generating filename from chunk time")
+    logger.debug("Generating filename from chunk time")
     time = chunck.time.values
     time_str = time.astype("datetime64[s]").astype(datetime).strftime("%Y-%m-%dT%Hh%Mm")
     return f"tempo_{time_str}{suffix}.png"
 
 
 def chunk_time_to_jstime(chunck: xr.DataArray) -> int:
-    logging.debug("Converting chunk time to JS timestamp")
+    logger.debug("Converting chunk time to JS timestamp")
     time = chunck.time.values
     # get the number of seconds since the epoch
     time_str = time.astype("datetime64[s]").astype(datetime).strftime("%Y-%m-%dT%Hh%Mm")

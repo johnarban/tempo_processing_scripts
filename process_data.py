@@ -19,16 +19,16 @@ from tempo_process_funcs import (
 import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from matplotlib.colors import LinearSegmentedColormap
-import logging
+
+from logger import setup_logging , set_log_level
+logger = setup_logging(debug = False, name = 'process_data')
+
 from typing import List, Tuple
 
 cloud_cmap = LinearSegmentedColormap.from_list(
     "gray_solid", ["#707070", "#707070"], N=256
 )
 
-logging.basicConfig(
-    level=logging.INFO, format="%(levelname)s - %(message)s"
-)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -76,12 +76,11 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_logging(debug: bool) -> None:
+def set_logging(debug: bool) -> None:
     """
     Set up logging configuration.
     """
-    level = logging.DEBUG if debug else logging.INFO
-    logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s")
+   
 
 
 def setup_directories(
@@ -92,7 +91,7 @@ def setup_directories(
     """
     directory = Path(args.directory)
     if not directory.exists():
-        logging.error(f"Directory {directory} does not exist")
+        logger.error(f"Directory {directory} does not exist")
         if not dry_run:
             sys.exit(1)
 
@@ -106,7 +105,7 @@ def setup_directories(
         if not cloud_output.exists():
             cloud_output.mkdir(parents=True, exist_ok=False)
 
-    logging.debug(f"Directories set up: {directory}, {output}, {cloud_output}")
+    logger.debug(f"Directories set up: {directory}, {output}, {cloud_output}")
     return directory, output, cloud_output
 
 
@@ -119,7 +118,7 @@ def get_input_files(
     if pattern is None:
         pattern = f"TEMPO_NO2_L{level}_V0{version}*_S*.nc"
     files = glob.glob(f"{directory}/{pattern}")
-    logging.debug(f"Found {len(files)} input files with pattern {pattern}")
+    logger.debug(f"Found {len(files)} input files with pattern {pattern}")
     return files
 
 
@@ -138,7 +137,7 @@ def process_files(
         datetimes.append(out[1])
         geospatial_bounds.append(out[2].geospatial_bounds)
         support.append(out[3])
-    logging.debug(f"Processed {len(input_files)} files")
+    logger.debug(f"Processed {len(input_files)} files")
     return input_data, datetimes, geospatial_bounds, support
 
 
@@ -157,7 +156,7 @@ def combine_data(
     support_data = xr.combine_by_coords(aligned_support)
     _ = final_data.rio.write_crs("epsg:4326", inplace=True)
     _ = support_data.rio.write_crs("epsg:4326", inplace=True)
-    logging.debug("Combined input data and support data")
+    logger.debug("Combined input data and support data")
     return final_data, support_data
 
 
@@ -173,16 +172,16 @@ def output_text_data(
     Output the bounds data to files.
     """
     if no_output:
-        logging.info("No output flag is set. Skipping text data output.")
+        logger.info("No output flag is set. Skipping text data output.")
         return
 
-    logging.info(f"Outputting text data to {output} with name {name} and suffix {suffix}")
+    logger.info(f"Outputting text data to {output} with name {name} and suffix {suffix}")
 
-    logging.debug("Bounds of the data:")
+    logger.debug("Bounds of the data:")
     bounds = get_bounds(rechunk)
     if not output.exists():
         raise FileNotFoundError(f"Output directory {output} does not exist")
-    logging.info(f"Outputting bounds to {output} as bounds_{name}.npy")
+    logger.info(f"Outputting bounds to {output} as bounds_{name}.npy")
     with open(output / f"bounds_{name}.npy", "w") as f:
         lonmin, lonmax, latmin, latmax = bounds
         lines = [
@@ -191,7 +190,7 @@ def output_text_data(
             f"lat_min: {latmin}",
             f"lat_max: {latmax}",
         ]
-        logging.info(f"latmin, lonmin, latmax, lonmax: {latmin:0.2f}, {lonmin:0.2f}, {latmax:0.2f}, {lonmax:0.2f}")
+        logger.info(f"latmin, lonmin, latmax, lonmax: {latmin:0.2f}, {lonmin:0.2f}, {latmax:0.2f}, {lonmax:0.2f}")
         f.write("\n".join(lines))
         LLatLng = "L.LatLng({},{})"
         LLatLngBounds = "L.LatLngBounds({}, {})"
@@ -206,12 +205,12 @@ def output_text_data(
     with open(output / f"bounds_{name}_geojson.json", "w") as f:
         json.dump(fors, f)
 
-    logging.debug(f"Saving times to {output} as times_{name}.npy")
+    logger.debug(f"Saving times to {output} as times_{name}.npy")
     times = list(sorted([chunk_time_to_jstime(ch) for ch in rechunk]))
 
     with open(output / f"times_{name}{suffix}.npy", "w") as f:
         f.write(str(times))
-    logging.debug(f"Output text data to {output}")
+    logger.debug(f"Output text data to {output}")
 
 
 def process_and_save_chunk(
@@ -230,10 +229,10 @@ def process_and_save_chunk(
     no_output=False,
 ) -> None:
     if no_output:
-        logging.info("No output flag is set. Skipping image saving.")
+        logger.info("No output flag is set. Skipping image saving.")
         return
 
-    logging.debug(f"Processing chunk with time {chunk.time.values}")
+    logger.debug(f"Processing chunk with time {chunk.time.values}")
 
     # Reproject data without applying cloud mask
     full_res, half_res = reproject_data(chunk, bounds, reproject, method)
@@ -258,14 +257,14 @@ def process_and_save_chunk(
     # Save full resolution image
     full_filename = output / chunk_time_to_fname(chunk, suffix)
     save_image(full_res_masked, cmap, vmin, vmax, full_filename)
-    logging.debug(f"Saved full resolution image to {full_filename}")
+    logger.debug(f"Saved full resolution image to {full_filename}")
 
     # Save half resolution image
     half_filename = output / "resized_images" / chunk_time_to_fname(chunk, suffix)
     if not half_filename.parent.exists():
         half_filename.parent.mkdir(parents=True, exist_ok=False)
     save_image(half_res_masked, cmap, vmin, vmax, half_filename)
-    logging.debug(f"Saved half resolution image to {half_filename}")
+    logger.debug(f"Saved half resolution image to {half_filename}")
 
 
 def process_new_data(
@@ -285,14 +284,14 @@ def process_new_data(
     cloud_output=False,
 ) -> None:
 
-    logging.debug("Rechunking data")
+    logger.debug("Rechunking data")
     rechunk = dataarray.chunk(chunks={"longitude": 188, "latitude": 373, "time": 1})
     output_text_data(rechunk, geospatial_bounds, name, output, suffix, args.no_output)
 
     if args.text_files_only:
         return
 
-    logging.info(f"Processing {name} data")
+    logger.info(f"Processing {name} data")
 
     def process_chunk(time):
         chunk = rechunk.sel(time=time)
@@ -314,7 +313,7 @@ def process_new_data(
         )
 
     if not args.singlethreaded and len(rechunk.time) >= 3:
-        logging.debug("Using ThreadPool")
+        logger.debug("Using ThreadPool")
         with ThreadPoolExecutor(max_workers=10) as executor:
             list(
                 tqdm.tqdm(
@@ -333,9 +332,9 @@ def main() -> None:
     Main function to process TEMPO data.
     """
     args = parse_arguments()
-    setup_logging(args.debug)
+    set_log_level(args.debug)
     if args.dry_run:
-        logging.info("Dry run")
+        logger.info("Dry run")
     directory, output, cloud_output = setup_directories(args, args.dry_run)
     input_files = get_input_files(directory, args.input, args.level, args.version)
 
@@ -344,9 +343,9 @@ def main() -> None:
         args.name = directory.resolve().parts[-1]
         # get the last part of the path
 
-    logging.info(f"\n==========\nName: {args.name}")
+    logger.info(f"\n==========\nName: {args.name}")
 
-    logging.info(
+    logger.info(
         f"""
         Processing {len(input_files)} files from {directory} with pattern {args.input}.
         Quality flag: {args.quality}.
@@ -359,12 +358,12 @@ def main() -> None:
     )
 
     if len(input_files) == 0:
-        logging.error(f"No files found in {directory} with pattern {args.input}")
+        logger.error(f"No files found in {directory} with pattern {args.input}")
         if not args.dry_run:
             sys.exit(1)
 
     if args.dry_run:
-        logging.info("Dry run: Skipping actual processing steps.")
+        logger.info("Dry run: Skipping actual processing steps.")
         return
 
     input_data, datetimes, geospatial_bounds, support = process_files(

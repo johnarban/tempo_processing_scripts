@@ -6,21 +6,10 @@ from datetime import datetime, timezone, timedelta
 import numpy as np
 
 from pathlib import Path
-
-import logging
-
+from logger import setup_logging
 
 
-def setup_logging(debug: bool) -> None:
-    """
-    Set up logging configuration.
-    """
-    level = logging.DEBUG if debug else logging.INFO
-    format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", '%H:%M')
-    logging.StreamHandler().setFormatter(format)
-    logging.basicConfig(level=level)
-
-setup_logging(debug = False)
+logger = setup_logging(debug = False, name = 'get_utils')
 
 CMR_DATE_FMT = "%Y-%m-%dT%H:%M:%SZ"  # format requirement for datetime search
 
@@ -46,13 +35,13 @@ def get_date_limits():
     last_time = times[-1] / 1000
     last_time_dt = dt.datetime.fromtimestamp(last_time, tz=timezone.utc)
 
-    logging.debug(f"Last time: {last_time_dt.strftime(CMR_DATE_FMT)}")
+    logger.debug(f"Last time: {last_time_dt.strftime(CMR_DATE_FMT)}")
 
     # Define the temporal range for the search
     start_date = last_time_dt
     end_date = dt.datetime.now(tz=timezone.utc)
-    logging.info(f"Search Start Date: {start_date.strftime(CMR_DATE_FMT)}")
-    logging.info(f"Search End Date: {end_date.strftime(CMR_DATE_FMT)}")
+    logger.info(f"Search Start Date: {start_date.strftime(CMR_DATE_FMT)}")
+    logger.info(f"Search End Date: {end_date.strftime(CMR_DATE_FMT)}")
 
     return start_date, end_date, last_time_dt
 
@@ -68,7 +57,7 @@ def search_for_granules(
     temporal_str = (
         start_date.strftime(CMR_DATE_FMT) + "," + end_date.strftime(CMR_DATE_FMT)
     )
-    logging.debug(f"Temporal String: {temporal_str}")
+    logger.debug(f"Temporal String: {temporal_str}")
 
     cmr_url = "https://cmr.earthdata.nasa.gov/search/granules"
 
@@ -90,13 +79,13 @@ def search_for_granules(
     if verbose:
         encoded_url = cmr_response.url
         decoded_url = unquote(encoded_url)
-        logging.debug(f"CMR Request URL: {decoded_url}")
+        logger.debug(f"CMR Request URL: {decoded_url}")
 
     granules = cmr_response.json()["feed"]["entry"]
 
     granule_urls = []
 
-    logging.info(f"Found {len(granules)} granules in search")
+    logger.info(f"Found {len(granules)} granules in search")
 
     for granule in granules:
         # item = next((item['href'] for item in granule['links'] if "opendap" in item["href"]), None)
@@ -110,13 +99,13 @@ def search_for_granules(
         )
         # print(urlTimeNearOrEarlier(item, last_downloaded_time), last_downloaded_time, item)
         if item != None and not urlTimeNearOrEarlier(item, last_downloaded_time):
-            logging.debug("added")
+            logger.debug("added")
             granule_urls.append(item)
 
-    logging.info(f"Found {len(granule_urls)} new granules")
+    logger.info(f"Found {len(granule_urls)} new granules")
 
     if len(granule_urls) == 0:
-        logging.info("No new data found")
+        logger.info("No new data found")
         exit(0)
     return granule_urls
 
@@ -136,9 +125,9 @@ def validate_directory_exists(path: Path | list[Path]):
         if not p.exists():
             all_exist = False
             if p.is_file():
-                logging.error(f"File does not exist: {p}")
+                logger.error(f"File does not exist: {p}")
             else:
-                logging.error(f"Path does not exist: {p}")
+                logger.error(f"Path does not exist: {p}")
     return all_exist
     
             
@@ -154,7 +143,7 @@ def ensure_directory(path: Path | str, *args, **kwargs):
         path.mkdir(*args, **kwargs)
     elif not path.exists():
         path.mkdir(*args, **kwargs)
-    logging.debug(f"Ensured directory: {path}")
+    logger.debug(f"Ensured directory: {path}")
 
 
 def check_cp_command(command: list[str]):
@@ -163,11 +152,11 @@ def check_cp_command(command: list[str]):
         destination_dir = os.path.basename(Path(command[2]))
 
         if not os.path.exists(source_file):
-            logging.error(f"Source file does not exist: {source_file}")
+            logger.error(f"Source file does not exist: {source_file}")
             sys.exit(1)
 
         if not os.path.exists(destination_dir):
-            logging.error(f"Destination directory does not exist: {destination_dir}")
+            logger.error(f"Destination directory does not exist: {destination_dir}")
             sys.exit(1)
 
 
@@ -177,9 +166,9 @@ def run_command(command: list[str],
                 background=False,
                 cwd: Path | str = "."):
     if dry_run:
-        logging.info(f'{" ".join(map(str,command))} (cwd: {cwd or "."})')
+        logger.info(f'{" ".join(map(str,command))} (cwd: {cwd or "."})')
     if (not dry_run) or run_anyway:
-        logging.info(f'Running: {" ".join(map(str,command))} (cwd: {cwd or "."})')
+        logger.info(f'Running: {" ".join(map(str,command))} (cwd: {cwd or "."})')
 
 
         try:
@@ -189,13 +178,13 @@ def run_command(command: list[str],
                 subprocess.run(command, cwd=cwd, check=True)
         except subprocess.CalledProcessError as e:
             check_cp_command(command)
-            logging.error(f"Error running command: {e}")
+            logger.error(f"Error running command: {e}")
             subprocess.run(["pwd"], cwd=cwd, check=True)
             sys.exit(1)
 
 
 def setup_data_folder(data_dir=None):
-    if data_dir:
+    if data_dir is not None:
         # path is not absolute, assume is is relative
         if not Path(data_dir).is_absolute():
             folder = Path(f"./{data_dir}")
@@ -213,7 +202,7 @@ def setup_data_folder(data_dir=None):
             folder = Path(f"./{today}{next(aToZ)}")
         if not folder.exists():
             folder.mkdir(exist_ok=False)
-    logging.debug(f"Data folder set up: {folder}")
+    logger.debug(f"Data folder set up: {folder}")
     return folder
 
 
@@ -227,10 +216,10 @@ def create_download_list(granule_urls: list[str], download_list: Path, data_dir:
                 f"{data_dir}/subsetted_netcdf/{filename}"
             )
             if exists:
-                logging.info(f"Skipping {filename}, already in {data_dir}")
+                logger.info(f"Skipping {filename}, already in {data_dir}")
                 continue
             f.write(url + "\n")
-    logging.debug(f"Download list created: {download_list}")
+    logger.debug(f"Download list created: {download_list}")
 
 def download_data(download_script_template, download_script, dry_run = False):
     run_command(['cp', str(download_script_template), str(download_script)], dry_run = dry_run)
@@ -262,7 +251,7 @@ def fetch_granule_data(start_date, end_date, folder: Path, download_list: Path, 
             )  # + dt.timedelta(days=1)
                 last_time = None
             except ValueError:
-                logging.error("Date format should be YYYY-MM-DD")
+                logger.error("Date format should be YYYY-MM-DD")
                 sys.exit(1)
         else:
             start_date, end_date, last_downloaded_time = get_date_limits()
@@ -276,7 +265,7 @@ def fetch_granule_data(start_date, end_date, folder: Path, download_list: Path, 
     )
 
         if len(granule_urls) == 0:
-            logging.info("No new data found")
+            logger.info("No new data found")
             exit(0)
 
         if only_one_file:
@@ -285,9 +274,9 @@ def fetch_granule_data(start_date, end_date, folder: Path, download_list: Path, 
         create_download_list(granule_urls, download_list, folder)
 
         if dry_run and not skip_download:
-            logging.info(" ==== Download List  ==== ")
+            logger.info(" ==== Download List  ==== ")
             with open(download_list, "r") as f:
-                logging.info(f.read())
+                logger.info(f.read())
         
         download_data(download_script_template, download_script, dry_run = dry_run)
         # download_data(download_list = download_list, template = download_script_template, download_dir = folder, dry_run=dry_run)

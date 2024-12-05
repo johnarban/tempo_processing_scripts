@@ -10,11 +10,12 @@ from get_tempo_data_utils import (
     run_command, 
     setup_data_folder, 
     fetch_granule_data, 
-    setup_logging, 
     validate_directory_exists
 )
 from typing import cast
 import argparse
+from logger import setup_logging, set_log_level
+logger = setup_logging(name = 'main')
 
 def parse_arguments() -> argparse.Namespace:
     """
@@ -23,10 +24,10 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Download new TEMPO data")
     parser.add_argument("--config", type=str, help="Path to the YAML configuration file", default="default_config.yaml")
     parser.add_argument("--root-dir", type=str, help="Root directory for all paths")
-    parser.add_argument("--skip-download", action="store_true", help="Skip the download step")
+    parser.add_argument("--skip-download", action="store_true", help="Skip the download step", default = None)
     parser.add_argument("--data-dir", type=str, help="The directory to search for new data")
     parser.add_argument("--dry-run", action="store_true", help="Print the commands that would be run, but do not run them")
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logger")
     parser.add_argument("--skip-subset", action="store_true", help="Skip the subset step")
     parser.add_argument("--use-subset", action="store_true", help="Use subsetted data")
     parser.add_argument("--skip-clouds", action="store_true", help="Skip the clouds step")
@@ -56,14 +57,28 @@ def load_config(args: argparse.Namespace) -> None:
         config = yaml.safe_load(file)
     for key, value in config.items():
         if getattr(args, key, None) is None:
+            logger.debug(f"Setting {key} to {value} from config")
             setattr(args, key, value)
+        
+        # This is not a good habit, but we only use True/False values on things
+        # that are by default False. Therefore it is True in the config file,
+        # we should respect that. 
+        elif getattr(args, key, None) is False:
+            logger.debug(f"Setting {key} to {value} from config")
+            setattr(args, key, value)
+        else:
+            logger.debug(f"Keeping {key} as {getattr(args, key)}")
+            
 
-def make_absolute(path: str, root_dir: Path) -> Path:
+def make_absolute(path: str | Path, root_dir: Path) -> Path:
     """
     Ensure all paths are absolute.
     """
-    path = Path(path).expanduser()
-    return root_dir / path if not path.is_absolute() else path
+    path = Path(path).expanduser() # type: ignore
+    if not path.is_absolute():
+        return root_dir / path
+    return path
+
 
 def setup_directories(args: argparse.Namespace, root_dir: Path) -> None:
     """
@@ -77,13 +92,13 @@ def log_summary(args: argparse.Namespace, root_dir: Path) -> None:
     """
     Log the summary of the configuration.
     """
-    logging.info("Log Summary:")
-    logging.info(f"Root directory: {root_dir}")
-    logging.info(f"Data directory: {args.data_dir}")
-    logging.info(f"Merge directory: {args.merge_dir}")
-    logging.info(f"Output directory: {args.output_dir}")
-    logging.info(f"Skip subset: {args.skip_subset}")
-    logging.info(f"Name: {args.name}")
+    logger.info("Log Summary:")
+    logger.info(f"Root directory: {root_dir}")
+    logger.info(f"Data directory: {args.data_dir}")
+    logger.info(f"Merge directory: {args.merge_dir}")
+    logger.info(f"Output directory: {args.output_dir}")
+    logger.info(f"Skip subset: {args.skip_subset}")
+    logger.info(f"Name: {args.name}")
 
 def check_and_create_directory(path: Path, dry_run: bool = False) -> None:
     """
@@ -91,7 +106,7 @@ def check_and_create_directory(path: Path, dry_run: bool = False) -> None:
     """
     if not path.exists():
         if dry_run:
-            logging.info(f"Would create directory: {path}")
+            logger.info(f"Would create directory: {path}")
         else:
             ensure_directory(path, parents=True, exist_ok=False)
 
@@ -100,19 +115,21 @@ def main() -> None:
     Main function to process TEMPO data.
     """
     args = parse_arguments()
+    set_log_level(args.verbose)
+    
     load_config(args)
-    setup_logging(args.verbose)
+    print(args)
 
     root_dir = Path(args.root_dir).resolve()
     setup_directories(args, root_dir)
     log_summary(args, root_dir)
 
     if args.skip_download and not args.data_dir:
-        logging.error("--skip-download requires --data-dir. Exiting...")
+        logger.error("--skip-download requires --data-dir. Exiting...")
         sys.exit(1)
 
     if args.dry_run:
-        logging.info("Dry run")
+        logger.info("Dry run")
 
     run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     netcdf_data_location = setup_data_folder(args.data_dir)
@@ -169,10 +186,10 @@ def main() -> None:
     subset_nc_files = list(netcdf_data_location.glob("subsetted_netcdf/*.nc"))
     doesnt_need_data = args.merge_only or args.text_files_only or args.use_subset or args.dry_run
     if not doesnt_need_data and not nc_files and (not args.use_subset or not subset_nc_files):
-        logging.info("No new data downloaded")
+        logger.info("No new data downloaded")
         exit(0)
     if nc_files or subset_nc_files:
-        logging.info(f"Using subsetted data: {len(subset_nc_files)} files" if args.use_subset else f"Using {len(nc_files)} files")
+        logger.info(f"Using subsetted data: {len(subset_nc_files)} files" if args.use_subset else f"Using {len(nc_files)} files")
 
     if not args.merge_only and not args.skip_process:
         process_args = [
@@ -206,7 +223,7 @@ def main() -> None:
     if not args.skip_merge:
         run_command(["sh", "merge.sh", "-s", str(image_directory) + "/", "-d", str(image_merge_directory)], dry_run=args.dry_run)
     else:
-        logging.info("Skipping merge")
+        logger.info("Skipping merge")
 
     if not args.skip_clouds:
         if not args.text_files_only and not args.no_output:
@@ -226,7 +243,14 @@ def main() -> None:
     if args.dry_run:
         import shutil
         if Path(netcdf_data_location).exists():
-            logging.info(f"Removed output directory: {netcdf_data_location}")
+            logger.info(f"Removed output directory: {netcdf_data_location}")
+            user_input = input(f"Are you sure you want to remove the directory {netcdf_data_location}? (yes/no): ")
+            if user_input.lower()[0] == 'y':
+                shutil.rmtree(netcdf_data_location)
+                logger.info(f"Removed output directory: {netcdf_data_location}")
+            else:
+                logger.info(f"Did not remove output directory: {netcdf_data_location}")
+
 
 if __name__ == "__main__":
     main()

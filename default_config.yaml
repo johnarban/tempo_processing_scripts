@@ -1,23 +1,23 @@
-root_dir: "./"
-skip_download: false
-data_dir: null
-dry_run: false
-verbose: false
-skip_subset: false
-use_subset: false
-skip_clouds: false
-no_reproject: false
-one_file: false
-reprojection_method: average
-text_files_only: false
-name: null
-merge_dir: "~/github/tempo-data-holdings"
-merge_only: false
-delete_after_merge: false
-output_dir: null
-start_date: null
-end_date: null
-use_input_filename: false
-no_output: false
-skip_compress: True
-skip_process: false
+root_dir: "./"                             # Root directory for all paths
+# skip_download: false                     # Skip the download step
+# data_dir: null                           # Directory to search for new data
+# dry_run: false                           # Print the commands that would be run, but do not run them
+# verbose: false                           # Enable verbose logging
+# skip_subset: false                       # Skip the subset step
+# use_subset: false                        # Use subsetted data
+# skip_clouds: false                       # Skip the clouds step
+# no_reproject: false                      # Do not reproject the images
+# one_file: false                          # Only get one file
+reprojection_method: average               # Reprojection method
+# text_files_only: false                   # Only process text files
+# name: null                               # Name of the data directory
+merge_dir: "~/github/tempo-data-holdings"  # Top level directory to place images in
+# merge_only: false                        # Only perform file merges
+# delete_after_merge: false                # Delete images in original directory after merge (does nothing right now)
+# output_dir: null                         # Output directory for images and text files
+# start_date: null                         # Start date for the data download (format: YYYY-MM-DD)
+# end_date: null                           # End date for the data download (format: YYYY-MM-DD)
+# use_input_filename: false                # Use the same name format as the input TEMPO files
+# no_output: false                         # Do not output images or text files
+skip_compress: true                      # Skip the compress
+# skip_process: false                      # Skip the data processing (image creation) step

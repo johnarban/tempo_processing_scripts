@@ -19,5 +19,5 @@ start_date: null
 end_date: null
 use_input_filename: false
 no_output: false
-skip_compress: false
+skip_compress: True
 skip_process: false

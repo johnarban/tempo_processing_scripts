@@ -161,7 +161,7 @@ def main() -> None:
     check_and_create_directory(cloud_merge_directory, args.dry_run)
 
     directories = [
-        output_dir,
+        Path(output_dir),
         netcdf_data_location,
         image_directory,
         resized_image_directory,

@@ -122,7 +122,7 @@ def main() -> None:
 
     root_dir = Path(args.root_dir).resolve()
     setup_directories(args, root_dir)
-    log_summary(args, root_dir)
+    # log_summary(args, root_dir)
 
     if args.skip_download and not args.data_dir:
         logger.error("--skip-download requires --data-dir. Exiting...")
@@ -161,6 +161,7 @@ def main() -> None:
     check_and_create_directory(cloud_merge_directory, args.dry_run)
 
     directories = [
+        output_dir,
         netcdf_data_location,
         image_directory,
         resized_image_directory,
@@ -186,7 +187,20 @@ def main() -> None:
             args.one_file,
         )
         validate_directory_exists([download_list, download_script])
-    sys.exit(0)
+    
+    # log the relaveant directoris
+    logger.info(f"Root directory: {root_dir}")
+    logger.info(f"Output directory: {output_dir}")
+    
+    logger.info(f"NetCDF data location: {netcdf_data_location}")
+    logger.info(f"Image directory: {image_directory}")
+    logger.info(f"Resized image directory: {resized_image_directory}")
+    logger.info(f"Cloud image directory: {cloud_image_directory}")
+    logger.info(f"Resized cloud image directory: {resized_cloud_image_directory}")
+    logger.info(f"Merge directory: {merge_directory}")
+    logger.info(f"Image merge directory: {image_merge_directory}")
+    logger.info(f"Cloud merge directory: {cloud_merge_directory}")
+    
 
     nc_files = list(netcdf_data_location.glob("*.nc"))
     subset_nc_files = list(netcdf_data_location.glob("subsetted_netcdf/*.nc"))

@@ -9,7 +9,7 @@ def setup_logging(debug: bool = False, name = __name__) -> logging.Logger:
     level = logging.DEBUG if debug else logging.INFO
     logger.setLevel(level)
     
-    format = logging.Formatter(f" {name} %(asctime)s - %(levelname)s - %(message)s - %(funcName)s", '%H:%M')
+    format = logging.Formatter(f" {name}:%(funcName)s T%(asctime)s - %(levelname)s:: %(message)s", '%H:%M')
     ch = logging.StreamHandler()
     ch.setFormatter(format)
     # logging.basicConfig(level=level)

@@ -41,9 +41,19 @@ check_dir_exists() {
     fi
 }
 
+
+check_dir_exists_and_make() {
+    local dir="$1"
+    if [ ! -d "$dir" ]; then
+        # make directory and parents if necessary
+        mkdir -p "$dir"
+    fi
+}
+
+
 # Check if source and destination directories exist
 check_dir_exists "$src"
-check_dir_exists "$dest"
+check_dir_exists_and_make "$dest"
 
 # Copy contents of the source directory to the destination directory
 # The -R option ensures recursive copying, and -n prevents overwriting existing files

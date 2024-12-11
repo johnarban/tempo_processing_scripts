@@ -36,7 +36,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--reprojection-method", type=str, help="Reprojection method", default="average")
     parser.add_argument("--text-files-only", action="store_true", help="Only process text files")
     parser.add_argument("--name", type=str, help="Name of the data directory", default=None)
-    parser.add_argument("--merge-dir", type=str, help="Top level directory to place images in", default="~/github/tempo-data-holdings")
+    parser.add_argument("--merge-dir", type=str, help="Top level directory to place images in", default=None)
     parser.add_argument("--merge-only", action="store_true", help="Only perform file merges")
     parser.add_argument("--skip-merge", action="store_true", help="Skip merging to production directory")
     parser.add_argument("--delete-after-merge", action="store_true", help="Delete images in original directory after merge")
@@ -258,7 +258,7 @@ def main() -> None:
             run_command(["sh", str(script_dir / "merge.sh"), "-s", str(cloud_image_directory) + "/", "-d", str(cloud_merge_directory), "-t" if args.dry_run else "", "-x" if args.delete_after_merge else ""], dry_run=args.dry_run)
 
     if not args.skip_subset and not args.use_subset and not args.text_files_only:
-        run_command(["sh", "subset_files.sh", netcdf_data_location.name], args.dry_run)
+        run_command(["sh", str(script_dir / "subset_files.sh"), str(netcdf_data_location)], args.dry_run, cwd=script_dir)
 
     if args.dry_run:
         import shutil

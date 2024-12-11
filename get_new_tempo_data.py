@@ -234,11 +234,12 @@ def main() -> None:
         run_command(["python", script_dir / "process_data.py"] + process_args, dry_run=args.dry_run, run_anyway=True)
 
     if not args.text_files_only and not args.no_output:
-        run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(image_directory)], args.dry_run)
-        run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(resized_image_directory)], args.dry_run)
-        if not args.skip_compress:
-            run_command(["sh", "compress_and_diff.sh"], cwd=image_directory, dry_run=args.dry_run)
-            run_command(["sh", "compress_and_diff.sh"], cwd=resized_image_directory, dry_run=args.dry_run)
+        # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(image_directory)], args.dry_run)
+        # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(resized_image_directory)], args.dry_run)
+        # if not args.skip_compress:
+        #     run_command(["sh", "compress_and_diff.sh"], cwd=image_directory, dry_run=args.dry_run)
+        #     run_command(["sh", "compress_and_diff.sh"], cwd=resized_image_directory, dry_run=args.dry_run)
+        pass
 
     if not args.skip_merge:
         run_command(["sh", str(script_dir / "merge.sh"), "-s", str(image_directory) + "/", "-d", str(image_merge_directory)], dry_run=args.dry_run)
@@ -247,12 +248,12 @@ def main() -> None:
 
     if not args.skip_clouds:
         if not args.text_files_only and not args.no_output:
-            run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(cloud_image_directory)], args.dry_run)
-            if not args.skip_compress:
-                run_command(["sh", "compress_and_diff.sh"], cwd=cloud_image_directory, dry_run=args.dry_run)
-            run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(resized_cloud_image_directory)], args.dry_run)
-            if not args.skip_compress:
-                run_command(["sh", "compress_and_diff.sh"], cwd=resized_cloud_image_directory, dry_run=args.dry_run)
+            # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(cloud_image_directory)], args.dry_run)
+            # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(resized_cloud_image_directory)], args.dry_run)
+            # if not args.skip_compress:
+            #     run_command(["sh", "compress_and_diff.sh"], cwd=cloud_image_directory, dry_run=args.dry_run)
+            #     run_command(["sh", "compress_and_diff.sh"], cwd=resized_cloud_image_directory, dry_run=args.dry_run)
+            pass
 
         if not args.skip_merge:
             run_command(["sh", str(script_dir / "merge.sh"), "-s", str(cloud_image_directory) + "/", "-d", str(cloud_merge_directory), "-t" if args.dry_run else "", "-x" if args.delete_after_merge else ""], dry_run=args.dry_run)

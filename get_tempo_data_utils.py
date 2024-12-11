@@ -237,7 +237,7 @@ def download_data(download_script_template, download_script, dry_run = False):
         logger.error("Please create a .netrc file with your Earthdata login credentials.")
         logger.error("See https://urs.earthdata.nasa.gov/documentation/for_users/data_access/curl_and_wget")
         sys.exit(1)
-    run_command(['cp', str(download_script_template), str(download_script)], dry_run = dry_run)
+    run_command(['cp', str(download_script_template), str(download_script)], dry_run = dry_run, run_anyway=True)
     run_command(['sh', str(download_script.name)], cwd=download_script.parent, dry_run = dry_run)
 
 # def download_data(download_list: Path, template: Path, download_dir: Path, dry_run = False):

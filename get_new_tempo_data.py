@@ -130,6 +130,9 @@ def main() -> None:
 
     if args.dry_run:
         logger.info("Dry run")
+        
+    # get the script directory
+    script_dir = Path(__file__).resolve().parent
 
     run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     netcdf_data_location = setup_data_folder(args.data_dir)
@@ -138,7 +141,7 @@ def main() -> None:
     check_and_create_directory(Path(output_dir), args.dry_run)
 
     download_list = netcdf_data_location / "download_list.txt"
-    download_script_template = Path("download_template.sh")
+    download_script_template = script_dir / Path("download_template.sh")
     download_script = netcdf_data_location / "download_template.sh"
 
     image_directory = make_absolute(f"{output_dir}/images", root_dir)
@@ -154,6 +157,8 @@ def main() -> None:
     merge_directory = args.merge_dir
     image_merge_directory = merge_directory / "released" / "images"
     cloud_merge_directory = merge_directory / "clouds" / "images"
+    check_and_create_directory(image_merge_directory, args.dry_run)
+    check_and_create_directory(cloud_merge_directory, args.dry_run)
 
     directories = [
         netcdf_data_location,
@@ -181,6 +186,7 @@ def main() -> None:
             args.one_file,
         )
         validate_directory_exists([download_list, download_script])
+    sys.exit(0)
 
     nc_files = list(netcdf_data_location.glob("*.nc"))
     subset_nc_files = list(netcdf_data_location.glob("subsetted_netcdf/*.nc"))
@@ -211,31 +217,31 @@ def main() -> None:
         process_args += ["--debug"] if (args.verbose or args.dry_run) else []
         process_args += ["--use-input-filename"] if args.use_input_filename else []
         process_args += ["--no-output"] if args.no_output else []
-        run_command(["python", "./process_data.py"] + process_args, dry_run=args.dry_run, run_anyway=True)
+        run_command(["python", script_dir / "process_data.py"] + process_args, dry_run=args.dry_run, run_anyway=True)
 
     if not args.text_files_only and not args.no_output:
-        run_command(["cp", "compress_and_diff.sh", str(image_directory)], args.dry_run)
-        run_command(["cp", "compress_and_diff.sh", str(resized_image_directory)], args.dry_run)
+        run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(image_directory)], args.dry_run)
+        run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(resized_image_directory)], args.dry_run)
         if not args.skip_compress:
             run_command(["sh", "compress_and_diff.sh"], cwd=image_directory, dry_run=args.dry_run)
             run_command(["sh", "compress_and_diff.sh"], cwd=resized_image_directory, dry_run=args.dry_run)
 
     if not args.skip_merge:
-        run_command(["sh", "merge.sh", "-s", str(image_directory) + "/", "-d", str(image_merge_directory)], dry_run=args.dry_run)
+        run_command(["sh", str(script_dir / "merge.sh"), "-s", str(image_directory) + "/", "-d", str(image_merge_directory)], dry_run=args.dry_run)
     else:
         logger.info("Skipping merge")
 
     if not args.skip_clouds:
         if not args.text_files_only and not args.no_output:
-            run_command(["cp", "compress_and_diff.sh", str(cloud_image_directory)], args.dry_run)
+            run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(cloud_image_directory)], args.dry_run)
             if not args.skip_compress:
                 run_command(["sh", "compress_and_diff.sh"], cwd=cloud_image_directory, dry_run=args.dry_run)
-            run_command(["cp", "compress_and_diff.sh", str(resized_cloud_image_directory)], args.dry_run)
+            run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(resized_cloud_image_directory)], args.dry_run)
             if not args.skip_compress:
                 run_command(["sh", "compress_and_diff.sh"], cwd=resized_cloud_image_directory, dry_run=args.dry_run)
 
         if not args.skip_merge:
-            run_command(["sh", "merge.sh", "-s", str(cloud_image_directory) + "/", "-d", str(cloud_merge_directory), "-t" if args.dry_run else "", "-x" if args.delete_after_merge else ""], dry_run=args.dry_run)
+            run_command(["sh", str(script_dir / "merge.sh"), "-s", str(cloud_image_directory) + "/", "-d", str(cloud_merge_directory), "-t" if args.dry_run else "", "-x" if args.delete_after_merge else ""], dry_run=args.dry_run)
 
     if not args.skip_subset and not args.use_subset and not args.text_files_only:
         run_command(["sh", "subset_files.sh", netcdf_data_location.name], args.dry_run)

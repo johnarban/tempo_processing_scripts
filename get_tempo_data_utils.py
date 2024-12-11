@@ -11,7 +11,12 @@ from logger import setup_logging
 
 logger = setup_logging(debug = False, name = 'get_utils')
 
+TEMPO_CONCEPT_ID = "C2930763263-LARC_CLOUD"  # TEMPO NO2 V03 L# Data
 CMR_DATE_FMT = "%Y-%m-%dT%H:%M:%SZ"  # format requirement for datetime search
+
+
+def to_datetime(date_str, format = "%Y-%m-%d"):
+    return datetime.strptime(date_str, format).replace(tzinfo=timezone.utc)
 
 
 def times_are_close(time1, time2, tolerance):
@@ -50,9 +55,8 @@ def search_for_granules(
     concept_id, start_date, end_date, last_downloaded_time, verbose=False, dry_run=False
 ):
     granule_search_url = (
-        "https://search.earthdata.nasa.gov/search/granules?p=C2930763263-LARC_CLOUD"
+        f"https://search.earthdata.nasa.gov/search/granules?p={concept_id}"
     )
-    concept_id = concept_id  # TEMPO NO2 V03 L# Data
 
     temporal_str = (
         start_date.strftime(CMR_DATE_FMT) + "," + end_date.strftime(CMR_DATE_FMT)
@@ -75,7 +79,7 @@ def search_for_granules(
         return ["https://not.a.real.url"]
 
     cmr_response = requests.get(cmr_url, params=search_params, headers=headers)
-
+    
     if verbose:
         encoded_url = cmr_response.url
         decoded_url = unquote(encoded_url)
@@ -98,7 +102,9 @@ def search_for_granules(
             None,
         )
         # print(urlTimeNearOrEarlier(item, last_downloaded_time), last_downloaded_time, item)
-        if item != None and not urlTimeNearOrEarlier(item, last_downloaded_time):
+        if last_downloaded_time is None:
+            granule_urls.append(item)
+        elif item != None and not urlTimeNearOrEarlier(item, last_downloaded_time):
             logger.debug("added")
             granule_urls.append(item)
 
@@ -111,9 +117,7 @@ def search_for_granules(
 
 
 def urlTimeNearOrEarlier(urlString, time2):
-    time1 = datetime.strptime(urlString.split("_")[-2], "%Y%m%dT%H%M%SZ").replace(
-        tzinfo=timezone.utc
-    )
+    time1 = to_datetime(urlString.split("_")[-2], "%Y%m%dT%H%M%SZ")
     # print(time1, time2)
     return times_are_close(time2, time1, timedelta(minutes=1))
 
@@ -247,27 +251,22 @@ def download_data(download_script_template, download_script, dry_run = False):
 #         dry_run=dry_run,
 #     )
 
-
-
 def fetch_granule_data(start_date, end_date, folder: Path, download_list: Path, download_script_template: Path, download_script: Path, skip_download = False, verbose = False, dry_run = False, only_one_file = False):
     if not skip_download:
     # Determine the date range for the data download
         if start_date and end_date:
             try:
-                start_date = datetime.strptime(start_date, "%Y-%m-%d").replace(
-                tzinfo=timezone.utc
-            )
-                end_date = datetime.strptime(end_date, "%Y-%m-%d").replace(
-                tzinfo=timezone.utc
-            )  # + dt.timedelta(days=1)
-                last_time = None
+                start_date = to_datetime(start_date, "%Y-%m-%d")
+                end_date = to_datetime(end_date, "%Y-%m-%d")
+                last_downloaded_time = None
             except ValueError:
                 logger.error("Date format should be YYYY-MM-DD")
                 sys.exit(1)
+            
         else:
             start_date, end_date, last_downloaded_time = get_date_limits()
         granule_urls = search_for_granules(
-        "C2930763263-LARC_CLOUD",
+        TEMPO_CONCEPT_ID,
         start_date,
         end_date,
         last_downloaded_time,

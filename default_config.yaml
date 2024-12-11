@@ -11,7 +11,7 @@ root_dir: "./"                             # Root directory for all paths
 reprojection_method: average               # Reprojection method
 # text_files_only: false                   # Only process text files
 # name: null                               # Name of the data directory
-merge_dir: "~/github/tempo-data-holdings"  # Top level directory to place images in
+merge_dir: "~/TEMPO/MERGE_DIR"  # Top level directory to place images in
 # merge_only: false                        # Only perform file merges
 # delete_after_merge: false                # Delete images in original directory after merge (does nothing right now)
 # output_dir: null                         # Output directory for images and text files

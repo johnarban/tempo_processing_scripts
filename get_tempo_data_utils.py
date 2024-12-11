@@ -181,6 +181,10 @@ def run_command(command: list[str],
             logger.error(f"Error running command: {e}")
             subprocess.run(["pwd"], cwd=cwd, check=True)
             sys.exit(1)
+        except:
+            subprocess.run(["pwd"], cwd=cwd, check=True)
+            subprocess.run(["python", "./test.py"], cwd=cwd, check=True)
+            sys.exit(1)
 
 
 def setup_data_folder(data_dir=None):

@@ -1,6 +1,7 @@
 # ignore all subfolders
 */*
 *
+*/
 !.gitignore
 !colormap.py
 !compress_and_diff.sh

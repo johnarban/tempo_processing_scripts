@@ -211,7 +211,7 @@ def main() -> None:
         process_args += ["--debug"] if (args.verbose or args.dry_run) else []
         process_args += ["--use-input-filename"] if args.use_input_filename else []
         process_args += ["--no-output"] if args.no_output else []
-        run_command(["./process_data.py"] + process_args, dry_run=args.dry_run, run_anyway=True)
+        run_command(["python", "./process_data.py"] + process_args, dry_run=args.dry_run, run_anyway=True)
 
     if not args.text_files_only and not args.no_output:
         run_command(["cp", "compress_and_diff.sh", str(image_directory)], args.dry_run)

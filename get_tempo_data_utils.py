@@ -222,6 +222,13 @@ def create_download_list(granule_urls: list[str], download_list: Path, data_dir:
     logger.debug(f"Download list created: {download_list}")
 
 def download_data(download_script_template, download_script, dry_run = False):
+    # check if a .netrc file is on the path
+    netrc = Path("~/.netrc").expanduser()
+    if not netrc.exists():
+        logger.error("No .netrc file found in home directory.")
+        logger.error("Please create a .netrc file with your Earthdata login credentials.")
+        logger.error("See https://urs.earthdata.nasa.gov/documentation/for_users/data_access/curl_and_wget")
+        sys.exit(1)
     run_command(['cp', str(download_script_template), str(download_script)], dry_run = dry_run)
     run_command(['sh', str(download_script.name)], cwd=download_script.parent, dry_run = dry_run)
 

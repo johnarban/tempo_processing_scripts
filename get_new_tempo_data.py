@@ -201,6 +201,10 @@ def main() -> None:
     logger.info(f"Image merge directory: {image_merge_directory}")
     logger.info(f"Cloud merge directory: {cloud_merge_directory}")
     
+    if not merge_directory.exists():
+        logger.error(f"Merge directory does not exist: {merge_directory}")
+        exit(1)
+    
 
     nc_files = list(netcdf_data_location.glob("*.nc"))
     subset_nc_files = list(netcdf_data_location.glob("subsetted_netcdf/*.nc"))

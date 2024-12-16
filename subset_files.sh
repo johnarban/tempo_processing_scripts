@@ -31,7 +31,7 @@ for file in "${files[@]}"; do
 
   # Use subset_tempo_data.py to subset the file and save it in the output directory
   basename="${file##*/}"
-  ./subset_tempo_data.py -f $inputDir/$basename -o $outputDir -d -n
+  python ./subset_tempo_data.py -f $inputDir/$basename -o $outputDir -d
 
   # Clear the progress bar after updating it
   # printf "\033[2K\r"

@@ -366,11 +366,11 @@ def save_image_compressed_command(
         )
     # use the imagemagick command line tool to compress the image
     # convert "$file" -define png:compression-filter=5 -define png:compression-level=1 -define png:compression-strategy=3 "$file"
-    outfilename = str(filename).replace(".png", f"_{compression_filter}_{compression_level}_{compression_strategy}.png")
+    outfilename = str(filename)
     
-    if Path(outfilename).exists():
-        logger.debug(f"Compressed file {outfilename} already exists. Skipping creation.")
-        return
+    # if Path(outfilename).exists():
+    #     logger.debug(f"Compressed file {outfilename} already exists. Skipping creation.")
+    #     return
     
     run_command(
         [

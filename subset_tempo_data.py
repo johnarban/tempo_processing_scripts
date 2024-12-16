@@ -129,8 +129,9 @@ def subset_files(filein, fileout, show_time = True):
         if args.dry_run:
             logger.info(f"Dry run: Deleted {filein}")
         else:
-            filein.unlink()
-            logger.debug(f"\nDeleted {filein}")
+            if fileout.exists():
+                filein.unlink()
+                logger.debug(f"\nDeleted {filein}")
 
 
 if __name__ == "__main__":

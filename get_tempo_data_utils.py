@@ -190,12 +190,22 @@ def run_command(command: list[str],
             subprocess.run(["python", "./test.py"], cwd=cwd, check=True)
             sys.exit(1)
 
+def make_absolute(path: str | Path, root_dir: Path) -> Path:
+    """
+    Ensure all paths are absolute.
+    """
+    path = Path(path).expanduser() # type: ignore
+    if not path.is_absolute():
+        return root_dir / path
+    return path
 
-def setup_data_folder(data_dir=None):
+def setup_data_folder(data_dir=None, root_dir=None):
+    if root_dir is None:
+        root_dir = Path('./')
     if data_dir is not None:
         # path is not absolute, assume is is relative
         if not Path(data_dir).is_absolute():
-            folder = Path(f"./{data_dir}")
+            folder = root_dir / Path(f"{data_dir}")
 
         else:
             folder = Path(data_dir)
@@ -203,11 +213,11 @@ def setup_data_folder(data_dir=None):
             folder.mkdir(exist_ok=False)
     else:
         today = datetime.now().strftime("%b_%d").lower()
-        folder = Path(f"./{today}")
+        folder = root_dir / Path(f"{today}")
         # ensure that the folder does not already exist
         aToZ = (letter for letter in "abcdefghijklmnopqrstuvwxyz")
         while folder.exists():
-            folder = Path(f"./{today}{next(aToZ)}")
+            folder = root_dir / Path(f"{today}{next(aToZ)}")
         if not folder.exists():
             folder.mkdir(exist_ok=False)
     logger.debug(f"Data folder set up: {folder}")

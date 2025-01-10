@@ -174,7 +174,10 @@ def output_text_data(
     if no_output:
         logger.info("No output flag is set. Skipping text data output.")
         return
-
+    
+    if '/' in name:
+        name = name.split('/')[-1]
+    
     logger.info(f"Outputting text data to {output} with name {name} and suffix {suffix}")
 
     logger.debug("Bounds of the data:")

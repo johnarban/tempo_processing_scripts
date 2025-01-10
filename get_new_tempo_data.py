@@ -9,6 +9,7 @@ from get_tempo_data_utils import (
     ensure_directory, 
     run_command, 
     setup_data_folder, 
+    make_absolute,
     fetch_granule_data, 
     validate_directory_exists
 )
@@ -70,14 +71,7 @@ def load_config(args: argparse.Namespace) -> None:
             logger.debug(f"Keeping {key} as {getattr(args, key)}")
             
 
-def make_absolute(path: str | Path, root_dir: Path) -> Path:
-    """
-    Ensure all paths are absolute.
-    """
-    path = Path(path).expanduser() # type: ignore
-    if not path.is_absolute():
-        return root_dir / path
-    return path
+
 
 
 def setup_directories(args: argparse.Namespace, root_dir: Path) -> None:
@@ -135,9 +129,10 @@ def main() -> None:
     script_dir = Path(__file__).resolve().parent
 
     run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    netcdf_data_location = setup_data_folder(args.data_dir)
+    netcdf_data_location = setup_data_folder(args.data_dir, root_dir)
 
     output_dir = args.output_dir if args.output_dir else netcdf_data_location.name
+    output_dir = make_absolute(output_dir, root_dir)
     check_and_create_directory(Path(output_dir), args.dry_run)
 
     download_list = netcdf_data_location / "download_list.txt"

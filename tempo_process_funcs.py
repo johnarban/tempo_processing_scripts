@@ -16,7 +16,6 @@ from colormap import svs_tempo_cmap
 from typing import Tuple
 import io
 
-
 import matplotlib.image as mimg
 import tqdm.notebook as tqdm
 
@@ -40,13 +39,10 @@ from logger import setup_logging
 
 logger = setup_logging(debug=True, name="process_funcs")
 
-
-
 directory = ["./2023m1103", "./2023m1101", "./2024m0328"][2]
 sample = False
 quality_flag = "high"
 input_files = glob.glob(f"{directory}/TEMPO_NO2_L3_V0*_S*.nc")
-
 
 # sort input_files by datetime
 # input_files.sort()
@@ -93,14 +89,9 @@ def cloud_cover_mask(quality_flag):
 
 def process_file(
     input_file: str, quality_flag: str = "svs"
-) -> tuple[xr.Dataset, datetime | None, xr.Dataset, xr.Dataset]:
+) -> tuple[xr.Dataset, datetime, xr.Dataset, xr.Dataset]:
     logger.debug(f"Processing file: {input_file}")
-    datetimestring = input_file.split("_")[-2]
-    try:
-        datetimes = datetime.strptime(datetimestring, "%Y%m%dT%H%M%SZ")
-    except ValueError:
-        datetimes = None
-        
+
     if not Path(input_file).exists():
         logger.error(f"File {input_file} does not exist")
         raise FileNotFoundError(f"File {input_file} does not exist")
@@ -115,6 +106,17 @@ def process_file(
         input_file, engine="h5netcdf", chunks="auto", group="support_data"
     )
     product = product.assign_coords(coords.coords)
+
+    try:
+        datetimes = datetime.strptime(
+            coords.time_coverage_start, "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=timezone.utc)
+    except:
+        print("Error in reading time_coverage_start")
+        datetimestring = input_file.split("_")[-2]
+        datetimes = datetime.strptime(datetimestring, "%Y%m%dT%H%M%SZ").replace(
+            tzinfo=timezone.utc
+        )
 
     mask = quality_mask(geoloc, product, support, quality_flag)
     masked_product = product.where(mask)
@@ -337,9 +339,9 @@ def save_image_compressed_buffer(
         compressed_buffer.seek(0)
         with open(filename, "wb") as f:
             f.write(compressed_buffer.getvalue())
-    
+
     logger.debug("Image saved")
-    
+
 def save_image_compressed_command(
     projected_data: np.ndarray,
     cmap: LinearSegmentedColormap | str,
@@ -351,7 +353,7 @@ def save_image_compressed_command(
     compression_strategy: int = 1,
 ) -> None:
     logger.debug(f"Saving image to: {filename}")
-    
+
     if Path(filename).exists():
         logger.debug(f"File {filename} already exists. Skipping creation.")
     else:
@@ -367,11 +369,11 @@ def save_image_compressed_command(
     # use the imagemagick command line tool to compress the image
     # convert "$file" -define png:compression-filter=5 -define png:compression-level=1 -define png:compression-strategy=3 "$file"
     outfilename = str(filename)
-    
+
     # if Path(outfilename).exists():
     #     logger.debug(f"Compressed file {outfilename} already exists. Skipping creation.")
     #     return
-    
+
     run_command(
         [
             "convert", str(filename),
@@ -383,7 +385,7 @@ def save_image_compressed_command(
         dry_run=False,
         background=True
     )
-    
+
     logger.debug("Image saved")
 
 
@@ -408,10 +410,16 @@ def plot_image(
 
 
 # file name format is tempo_2024-03-28T12h24m.png
-def chunk_time_to_fname(chunck: xr.DataArray, suffix="") -> str:
+def chunk_to_fname(chunck: xr.DataArray, suffix="") -> str:
     logger.debug("Generating filename from chunk time")
     time = chunck.time.values
     time_str = time.astype("datetime64[s]").astype(datetime).strftime("%Y-%m-%dT%Hh%Mm")
+    return f"tempo_{time_str}{suffix}.png"
+
+
+def time_to_fname(time: datetime, suffix="", format="%Y-%m-%dT%H:%M:%SZ") -> str:
+    logger.debug("Generating filename from chunk time")
+    time_str = time.replace(tzinfo=timezone.utc).strftime(format)
     return f"tempo_{time_str}{suffix}.png"
 
 

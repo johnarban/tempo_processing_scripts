@@ -8,7 +8,7 @@ import xarray as xr
 from tempo_process_funcs import (
     process_file,
     get_bounds,
-    chunk_time_to_fname,
+    chunk_to_fname,
     chunk_time_to_jstime,
     svs_tempo_cmap,
     get_field_of_regards,
@@ -258,12 +258,12 @@ def process_and_save_chunk(
         half_res_masked = np.where(half_cloud_mask, half_res, np.nan)
 
     # Save full resolution image
-    full_filename = output / chunk_time_to_fname(chunk, suffix)
+    full_filename = output / chunk_to_fname(chunk, suffix)
     save_image(full_res_masked, cmap, vmin, vmax, full_filename)
     logger.debug(f"Saved full resolution image to {full_filename}")
 
     # Save half resolution image
-    half_filename = output / "resized_images" / chunk_time_to_fname(chunk, suffix)
+    half_filename = output / "resized_images" / chunk_to_fname(chunk, suffix)
     if not half_filename.parent.exists():
         half_filename.parent.mkdir(parents=True, exist_ok=False)
     save_image(half_res_masked, cmap, vmin, vmax, half_filename)

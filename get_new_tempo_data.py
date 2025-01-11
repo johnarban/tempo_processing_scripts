@@ -26,29 +26,32 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Download new TEMPO data")
     parser.add_argument("--config", type=str, help="Path to the YAML configuration file", default="default_config.yaml")
     parser.add_argument("--root-dir", type=str, help="Root directory for all paths")
-    parser.add_argument("--skip-download", action="store_true", help="Skip the download step", default = None)
     parser.add_argument("--data-dir", type=str, help="The directory to search for new data")
+    parser.add_argument("--merge-dir", type=str, help="Top level directory to place images in", default=None)
+    parser.add_argument("--output-dir", type=str, help="Output directory for images and text files", default=None)
+    
+    parser.add_argument("--start-date", type=str, help="[Optional] Start date for the data download (format: YYYY-MM-DD)")
+    parser.add_argument("--end-date", type=str, help="[Optional] End date for the data download (format: YYYY-MM-DD)")
+    
+    parser.add_argument("--skip-download", action="store_true", help="Skip the download step", default = None)
+    parser.add_argument("--skip-subset", action="store_true", help="Skip the subset step")
+    parser.add_argument("--skip-clouds", action="store_true", help="Skip the clouds step")
+    parser.add_argument("--skip-merge", action="store_true", help="Skip merging to production directory")
+    parser.add_argument("--skip-process", action="store_true", help="Skip the data processing (image creation) step")
+    
+    parser.add_argument("--text-files-only", action="store_true", help="Process step will only process text files")
+    parser.add_argument("--merge-only", action="store_true", help="Only perform file merges")
+    parser.add_argument("--use-subset", action="store_true", help="Use subsetted data")
+    parser.add_argument("--no-reproject", action="store_true", help="Do not reproject the images")
+    parser.add_argument("--reprojection-method", type=str, help="Reprojection method", default="average")
+    parser.add_argument("--use-input-filename", action="store_true", help="Use the same name format as the input TEMPO files")
+    parser.add_argument("--one-file", action="store_true", help="Only get one file")
+    parser.add_argument("--delete-after-merge", action="store_true", help="Delete images in original directory after merge")
+    parser.add_argument("--no-output", action="store_true", help="Do not output images or text files")
     parser.add_argument("--dry-run", action="store_true", help="Print the commands that would be run, but do not run them")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logger")
-    parser.add_argument("--skip-subset", action="store_true", help="Skip the subset step")
-    parser.add_argument("--use-subset", action="store_true", help="Use subsetted data")
-    parser.add_argument("--skip-clouds", action="store_true", help="Skip the clouds step")
-    parser.add_argument("--no-reproject", action="store_true", help="Do not reproject the images")
-    parser.add_argument("--one-file", action="store_true", help="Only get one file")
-    parser.add_argument("--reprojection-method", type=str, help="Reprojection method", default="average")
-    parser.add_argument("--text-files-only", action="store_true", help="Only process text files")
     parser.add_argument("--name", type=str, help="Name of the data directory", default=None)
-    parser.add_argument("--merge-dir", type=str, help="Top level directory to place images in", default=None)
-    parser.add_argument("--merge-only", action="store_true", help="Only perform file merges")
-    parser.add_argument("--skip-merge", action="store_true", help="Skip merging to production directory")
-    parser.add_argument("--delete-after-merge", action="store_true", help="Delete images in original directory after merge")
-    parser.add_argument("--output-dir", type=str, help="Output directory for images and text files", default=None)
-    parser.add_argument("--start-date", type=str, help="Start date for the data download (format: YYYY-MM-DD)")
-    parser.add_argument("--end-date", type=str, help="End date for the data download (format: YYYY-MM-DD)")
-    parser.add_argument("--use-input-filename", action="store_true", help="Use the same name format as the input TEMPO files")
-    parser.add_argument("--no-output", action="store_true", help="Do not output images or text files")
-    parser.add_argument("--skip-compress", action="store_true", help="Skip the compress")
-    parser.add_argument("--skip-process", action="store_true", help="Skip the data processing (image creation) step")
+    # parser.add_argument("--skip-compress", action="store_true", help="Skip the compress")
     return parser.parse_args()
 
 def load_config(args: argparse.Namespace) -> None:
@@ -233,30 +236,15 @@ def main() -> None:
         process_args += ["--no-output"] if args.no_output else []
         run_command(["python", str(script_dir / "process_data.py")] + process_args, dry_run=args.dry_run, run_anyway=True)
 
-    if not args.text_files_only and not args.no_output:
-        # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(image_directory)], args.dry_run)
-        # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(resized_image_directory)], args.dry_run)
-        # if not args.skip_compress:
-        #     run_command(["sh", "compress_and_diff.sh"], cwd=image_directory, dry_run=args.dry_run)
-        #     run_command(["sh", "compress_and_diff.sh"], cwd=resized_image_directory, dry_run=args.dry_run)
-        pass
+
 
     if not args.skip_merge:
         run_command(["sh", str(script_dir / "merge.sh"), "-s", str(image_directory) + "/", "-d", str(image_merge_directory)], dry_run=args.dry_run)
+        if not args.skip_clouds:
+            run_command(["sh", str(script_dir / "merge.sh"), "-s", str(cloud_image_directory) + "/", "-d", str(cloud_merge_directory), "-t" if args.dry_run else "", "-x" if args.delete_after_merge else ""], dry_run=args.dry_run)
     else:
         logger.info("Skipping merge")
 
-    if not args.skip_clouds:
-        if not args.text_files_only and not args.no_output:
-            # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(cloud_image_directory)], args.dry_run)
-            # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(resized_cloud_image_directory)], args.dry_run)
-            # if not args.skip_compress:
-            #     run_command(["sh", "compress_and_diff.sh"], cwd=cloud_image_directory, dry_run=args.dry_run)
-            #     run_command(["sh", "compress_and_diff.sh"], cwd=resized_cloud_image_directory, dry_run=args.dry_run)
-            pass
-
-        if not args.skip_merge:
-            run_command(["sh", str(script_dir / "merge.sh"), "-s", str(cloud_image_directory) + "/", "-d", str(cloud_merge_directory), "-t" if args.dry_run else "", "-x" if args.delete_after_merge else ""], dry_run=args.dry_run)
 
     if not args.skip_subset and not args.use_subset and not args.text_files_only:
         run_command(["sh", str(script_dir / "subset_files.sh"), escape_spaces(netcdf_data_location)], args.dry_run, cwd=script_dir)

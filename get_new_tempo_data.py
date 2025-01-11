@@ -25,7 +25,7 @@ def parse_arguments() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(description="Download new TEMPO data")
     parser.add_argument("--config", type=str, help="Path to the YAML configuration file", default="default_config.yaml")
-    parser.add_argument("--root-dir", type=str, help="Root directory for all paths")
+    parser.add_argument("--root-dir", type=str, help="Root directory for all data output paths")
     parser.add_argument("--data-dir", type=str, help="The directory to search for new data")
     parser.add_argument("--merge-dir", type=str, help="Top level directory to place images in", default=None)
     parser.add_argument("--output-dir", type=str, help="Output directory for images and text files", default=None)

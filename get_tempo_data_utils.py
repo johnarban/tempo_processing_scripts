@@ -215,7 +215,7 @@ def setup_data_folder(data_dir=None, root_dir=None):
         if not folder.exists():
             folder.mkdir(exist_ok=False)
     else:
-        today = datetime.now().strftime("%b_%d").lower()
+        today = datetime.now().strftime("%Y_%b_%d").lower()
         folder = root_dir / Path(f"{today}")
         # ensure that the folder does not already exist
         aToZ = (letter for letter in "abcdefghijklmnopqrstuvwxyz")

@@ -84,8 +84,11 @@ def search_for_granules(
         encoded_url = cmr_response.url
         decoded_url = unquote(encoded_url)
         logger.debug(f"CMR Request URL: {decoded_url}")
-
-    granules = cmr_response.json()["feed"]["entry"]
+    
+    try:
+        granules = cmr_response.json()["feed"]["entry"]
+    except KeyError:
+        breakpoint()
 
     granule_urls = []
 
@@ -300,3 +303,14 @@ def fetch_granule_data(start_date, end_date, folder: Path, download_list: Path, 
         
         download_data(download_script_template, download_script, dry_run = dry_run)
         # download_data(download_list = download_list, template = download_script_template, download_dir = folder, dry_run=dry_run)
+
+def wrap_in_quotes(string: str) -> str:
+    # if the string is not already wrapped in quotes, wrap it
+    if not string.startswith('"') and not string.endswith('"'):
+        return f'"{string}"'
+    return string
+
+# using the pathlib library, make sure that spaces are escaped in the path
+def escape_spaces(path: Path) -> str:
+    escaped = str(path).replace(" ", "\\ ")
+    return escaped

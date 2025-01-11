@@ -11,7 +11,8 @@ from get_tempo_data_utils import (
     setup_data_folder, 
     make_absolute,
     fetch_granule_data, 
-    validate_directory_exists
+    validate_directory_exists,
+    escape_spaces
 )
 from typing import cast
 import argparse
@@ -230,7 +231,7 @@ def main() -> None:
         process_args += ["--debug"] if (args.verbose or args.dry_run) else []
         process_args += ["--use-input-filename"] if args.use_input_filename else []
         process_args += ["--no-output"] if args.no_output else []
-        run_command(["python", script_dir / "process_data.py"] + process_args, dry_run=args.dry_run, run_anyway=True)
+        run_command(["python", str(script_dir / "process_data.py")] + process_args, dry_run=args.dry_run, run_anyway=True)
 
     if not args.text_files_only and not args.no_output:
         # run_command(["cp", str(script_dir / "compress_and_diff.sh"), str(image_directory)], args.dry_run)
@@ -258,7 +259,7 @@ def main() -> None:
             run_command(["sh", str(script_dir / "merge.sh"), "-s", str(cloud_image_directory) + "/", "-d", str(cloud_merge_directory), "-t" if args.dry_run else "", "-x" if args.delete_after_merge else ""], dry_run=args.dry_run)
 
     if not args.skip_subset and not args.use_subset and not args.text_files_only:
-        run_command(["sh", str(script_dir / "subset_files.sh"), str(netcdf_data_location)], args.dry_run, cwd=script_dir)
+        run_command(["sh", str(script_dir / "subset_files.sh"), escape_spaces(netcdf_data_location)], args.dry_run, cwd=script_dir)
 
     if args.dry_run:
         import shutil

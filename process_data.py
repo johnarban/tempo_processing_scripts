@@ -1,6 +1,7 @@
 #!/Users/jal194/anaconda3/bin/python
 import glob
 import json
+import datetime as dt
 from pathlib import Path
 import argparse, sys
 import numpy as np
@@ -160,6 +161,7 @@ def combine_data(
     return final_data, support_data
 
 
+
 def output_text_data(
     rechunk: xr.DataArray,
     geospatial_bounds: List[dict],
@@ -184,8 +186,10 @@ def output_text_data(
     bounds = get_bounds(rechunk)
     if not output.exists():
         raise FileNotFoundError(f"Output directory {output} does not exist")
-    logger.info(f"Outputting bounds to {output} as bounds_{name}.npy")
-    with open(output / f"bounds_{name}.npy", "w") as f:
+    # create uuid from timestamp
+    uuid = dt.datetime.now().strftime("%Y%m%d%H%M%S")
+    logger.info(f"Outputting bounds to {output} as bounds_{name}_{uuid}.npy")
+    with open(output / f"bounds_{name}_{uuid}.npy", "w") as f:
         lonmin, lonmax, latmin, latmax = bounds
         lines = [
             f"lon_min: {lonmin}",
@@ -208,10 +212,12 @@ def output_text_data(
     with open(output / f"bounds_{name}_geojson.json", "w") as f:
         json.dump(fors, f)
 
-    logger.debug(f"Saving times to {output} as times_{name}.npy")
+    logger.debug(f"Saving times to {output} as times_{name}_{uuid}.npy")
     times = list(sorted([chunk_time_to_jstime(ch) for ch in rechunk]))
-
-    with open(output / f"times_{name}{suffix}.npy", "w") as f:
+    
+    
+    
+    with open(output / f"times_{name}{suffix}_{uuid}.npy", "w") as f:
         f.write(str(times))
     logger.debug(f"Output text data to {output}")
 

@@ -171,11 +171,16 @@ def run_command(command: list[str],
                 dry_run=False,
                 run_anyway=False, 
                 background=False,
-                cwd: Path | str = "."):
+                cwd: Path | str = ".",
+                silent=False
+                ):
     if dry_run:
         logger.info(f'{" ".join(map(str,command))} (cwd: {cwd or "."})')
     if (not dry_run) or run_anyway:
-        logger.info(f'Running: {" ".join(map(str,command))} (cwd: {cwd or "."})')
+        if silent:
+            logger.debug(f'Running: {" ".join(map(str,command))} (cwd: {cwd or "."})')
+        else:
+            logger.info(f'Running: {" ".join(map(str,command))} (cwd: {cwd or "."})')
 
 
         try:

@@ -383,7 +383,8 @@ def save_image_compressed_command(
             outfilename
         ],
         dry_run=False,
-        background=True
+        background=False,
+        silent=True
     )
 
     logger.debug("Image saved")

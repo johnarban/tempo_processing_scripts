@@ -38,16 +38,19 @@ class Timer:
 
 class TimedContext(object):
     def __init__(self, use_timer = True):
-        self.timer = Timer()
-        self.use_timer = use_timer
+        # self.timer = Timer()
+        # self.use_timer = use_timer
+        pass
     
     def __enter__(self):
-        if self.use_timer:
-            self.timer.start()
-        return self.timer
+        # if self.use_timer:
+        #     self.timer.start()
+        # return self.timer
+        return None
     
     def __exit__(self, exc_type, exc_value, traceback):
-        self.timer.stop()
+        pass
+        # self.timer.stop()
 
 def subset_files(filein, fileout, show_time = True):
     
@@ -163,7 +166,7 @@ if __name__ == "__main__":
     filein = Path(args.file)
 
     if not filein.exists():
-        print(f"File {filein} does not exist")
+        logger.error(f"File {filein} does not exist")
         sys.exit(1)
     
     # Options for the args.output

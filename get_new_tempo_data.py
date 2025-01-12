@@ -116,7 +116,6 @@ def main() -> None:
     set_log_level(args.verbose)
     
     load_config(args)
-    print(args)
 
     root_dir = Path(args.root_dir).resolve()
     setup_directories(args, root_dir)

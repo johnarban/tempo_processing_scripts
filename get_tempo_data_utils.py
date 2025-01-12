@@ -269,7 +269,7 @@ def download_data(download_script_template, download_script, dry_run = False):
 #         dry_run=dry_run,
 #     )
 
-def fetch_granule_data(start_date, end_date, folder: Path, download_list: Path, download_script_template: Path, download_script: Path, skip_download = False, verbose = False, dry_run = False, only_one_file = False):
+def fetch_granule_data(start_date, end_date, folder: Path, download_list: Path, download_script_template: Path, download_script: Path, skip_download = False, verbose = False, dry_run = False, only_one_file = False, check_only = False):
     if not skip_download:
     # Determine the date range for the data download
         if start_date and end_date:
@@ -291,7 +291,7 @@ def fetch_granule_data(start_date, end_date, folder: Path, download_list: Path, 
         verbose,
         dry_run=dry_run,
     )
-
+    if not check_only:
         if len(granule_urls) == 0:
             logger.info("No new data found")
             exit(0)

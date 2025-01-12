@@ -22,3 +22,4 @@
 !create_env.sh
 !environment.txt
 !reorganize_data.ipynb
+!check_new_files.py

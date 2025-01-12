@@ -209,7 +209,7 @@ def output_text_data(
     for i, geo in enumerate(geospatial_bounds):
         fors.append(get_field_of_regards(geo))
 
-    with open(output / f"bounds_{name}_geojson.json", "w") as f:
+    with open(output / f"bounds_{name}_geojson_{uuid}.json", "w") as f:
         json.dump(fors, f)
 
     logger.debug(f"Saving times to {output} as times_{name}_{uuid}.npy")

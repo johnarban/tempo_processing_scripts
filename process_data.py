@@ -1,6 +1,7 @@
 #!/Users/jal194/anaconda3/bin/python
 import glob
 import json
+import yaml
 import datetime as dt
 from pathlib import Path
 import argparse, sys
@@ -74,8 +75,30 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--debug", help="Enable debug logging", action="store_true")
     parser.add_argument("--cloud-cmap", help="Set color map for clouds cover. Default is solid grey")
     parser.add_argument("--no-output", action="store_true", help="Do not create text and image files")
+    parser.add_argument("--vmin", type=float, help="Minimum value for color map", default=1)
+    parser.add_argument("--vmax", type=float, help="Maximum value for color map", default=150)
+    parser.add_argument("--config", type=str, help="Configuration file", default="process.yaml")
     return parser.parse_args()
 
+def load_config(args: argparse.Namespace) -> None:
+    """
+    Load configuration from YAML file and override with command-line arguments.
+    """
+    with open(args.config, "r") as file:
+        config = yaml.safe_load(file)
+    for key, value in config.items():
+        if getattr(args, key, None) is None:
+            logger.debug(f"Setting {key} to {value} from config")
+            setattr(args, key, value)
+        
+        # This is not a good habit, but we only use True/False values on things
+        # that are by default False. Therefore it is True in the config file,
+        # we should respect that. 
+        elif getattr(args, key, None) is False:
+            logger.debug(f"Setting {key} to {value} from config")
+            setattr(args, key, value)
+        else:
+            logger.debug(f"Keeping {key} as {getattr(args, key)}")
 
 def set_logging(debug: bool) -> None:
     """
@@ -402,8 +425,8 @@ def main() -> None:
         output,
         args,
         svs_tempo_cmap,
-        0.01,
-        1.5,
+        args.vmin/100,
+        args.vmax/100,
         not args.no_reproject,
         args.method,
         cloud_threshold,

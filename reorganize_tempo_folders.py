@@ -1,7 +1,8 @@
-# To add a new cell, type '# %%'
-# To add a new markdown cell, type '# %% [markdown]'
-# %%
+# To add a new cell, type ''
+# To add a new markdown cell, type ' [markdown]'
+
 import os
+import sys
 import shutil
 from pathlib import Path, PosixPath
 from datetime import datetime, timedelta
@@ -27,7 +28,7 @@ import logging
 # logger.addHandler(ch)
 
 RUN = True
-
+TEST = False
 
 def create_directory_structure(base_dir: Path, date: str) -> Path:
     """
@@ -86,16 +87,16 @@ def move_files_to_day_directory(base_dir: Path, in_dirs: list[Path], file_patter
 
 
 
-# %%
+
 exclude_dirs = []
 
 
-# %%
+
 valid_directories =  list(set(d.parent.parent for d in  Path("./").glob('*_*/subsetted_netcdf/*.nc')) - set(exclude_dirs))
 print("Moving: ", list(valid_directories))
 
 
-# %%
+
 # ['subsetted_netcdf','cloud_images/resized_images','images/resized_images']
 base_dir = Path("./")
 netcdf_pattern = "./subsetted_netcdf/*.nc"
@@ -105,6 +106,9 @@ cloud_image_pattern = "./cloud_images/*.png"
 cloud_image_resized_pattern = "./cloud_images/resized_images/*.png"
 valid_directories = list(set(d.parent.parent for d in  Path("./").glob('*_*/subsetted_netcdf/*.nc')) - set(exclude_dirs))
 # valid_directories = [Path("may_01_onward")]
+
+if TEST:
+    sys.exit()
 
 def netcdf_parser(filename: str) -> str:
     date_str = filename.split('_')[-2]

@@ -1,5 +1,6 @@
 import datetime as dt
 import logging
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,6 +52,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true", help="Print the commands that would be run, but do not run them")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logger")
     parser.add_argument("--name", type=str, help="Name of the data directory", default=None)
+    parser.add_argument("--data-range-min", type=int, default=None)
+    parser.add_argument("--data-range-max", type=int, default=None)
+    parser.add_argument("--overwrite", action="store_true")
     # parser.add_argument("--skip-compress", action="store_true", help="Skip the compress")
     return parser.parse_args()
 
@@ -233,6 +237,10 @@ def main() -> None:
         process_args += ["--debug"] if (args.verbose or args.dry_run) else []
         process_args += ["--use-input-filename"] if args.use_input_filename else []
         process_args += ["--no-output"] if args.no_output else []
+        process_args += ["--vmin", str(args.data_range_min)] if args.data_range_min is not None else []
+        process_args += ["--vmax", str(args.data_range_max)] if args.data_range_max is not None else []
+        process_args += ["--overwrite"] if args.overwrite else []
+        
         run_command(["python", str(script_dir / "process_data.py")] + process_args, dry_run=args.dry_run, run_anyway=True)
 
 
@@ -251,10 +259,13 @@ def main() -> None:
     if args.dry_run:
         import shutil
         if Path(netcdf_data_location).exists():
-            logger.info(f"Removed output directory: {netcdf_data_location}")
-            user_input = input(f"Are you sure you want to remove the directory {netcdf_data_location}? (yes/no): ")
+            # logger.info(f"Removed output directory: {netcdf_data_location}")
+            if os.uname().nodename == 'localhost':
+                user_input = input(f"Are you sure you want to remove the directory {netcdf_data_location}? (yes/no): ")
+            else: 
+                user_input = 'n'
             if user_input.lower()[0] == 'y':
-                shutil.rmtree(netcdf_data_location)
+                # shutil.rmtree(netcdf_data_location)
                 logger.info(f"Removed output directory: {netcdf_data_location}")
             else:
                 logger.info(f"Did not remove output directory: {netcdf_data_location}")

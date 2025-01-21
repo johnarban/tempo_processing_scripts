@@ -19,5 +19,7 @@ merge_dir: "~/TEMPO/MERGE_DIR"  # Top level directory to place images in
 # end_date: null                           # End date for the data download (format: YYYY-MM-DD)
 # use_input_filename: false                # Use the same name format as the input TEMPO files
 # no_output: false                         # Do not output images or text files
-skip_compress: true                      # Skip the compress
+skip_compress: true                        # Skip the compress
 # skip_process: false                      # Skip the data processing (image creation) step
+# data_range_min: 1                        # Min value for image colormap (x 1e14 m/cm^2)
+# data_range_max: 150                      # Max value for image colormap (x 1e14 m/cm^2)

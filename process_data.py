@@ -77,6 +77,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--no-output", action="store_true", help="Do not create text and image files")
     parser.add_argument("--vmin", type=float, help="Minimum value for color map", default=1)
     parser.add_argument("--vmax", type=float, help="Maximum value for color map", default=150)
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite the output images if they already exist")
     parser.add_argument("--config", type=str, help="Configuration file", default="process.yaml")
     return parser.parse_args()
 
@@ -259,6 +260,7 @@ def process_and_save_chunk(
     cloud_threshold: float = 0.5,
     cloud_output=False,
     no_output=False,
+    overwrite=False
 ) -> None:
     if no_output:
         logger.info("No output flag is set. Skipping image saving.")
@@ -288,14 +290,14 @@ def process_and_save_chunk(
 
     # Save full resolution image
     full_filename = output / chunk_to_fname(chunk, suffix)
-    save_image(full_res_masked, cmap, vmin, vmax, full_filename)
+    save_image(full_res_masked, cmap, vmin, vmax, full_filename, overwrite=overwrite)
     logger.debug(f"Saved full resolution image to {full_filename}")
 
     # Save half resolution image
     half_filename = output / "resized_images" / chunk_to_fname(chunk, suffix)
     if not half_filename.parent.exists():
         half_filename.parent.mkdir(parents=True, exist_ok=False)
-    save_image(half_res_masked, cmap, vmin, vmax, half_filename)
+    save_image(half_res_masked, cmap, vmin, vmax, half_filename,overwrite=overwrite)
     logger.debug(f"Saved half resolution image to {half_filename}")
 
 
@@ -314,6 +316,7 @@ def process_new_data(
     method="average",
     cloud_threshold: float = 0.5,
     cloud_output=False,
+    overwrite=False
 ) -> None:
 
     logger.debug("Rechunking data")
@@ -342,6 +345,7 @@ def process_new_data(
             cloud_threshold,
             cloud_output=cloud_output,
             no_output=args.no_output,
+            overwrite=overwrite
         )
 
     if not args.singlethreaded and len(rechunk.time) >= 3:
@@ -369,6 +373,9 @@ def main() -> None:
         logger.info("Dry run")
     directory, output, cloud_output = setup_directories(args, args.dry_run)
     input_files = get_input_files(directory, args.input, args.level, args.version)
+    
+    if args.overwrite:
+        print("**WARNING** THIS WILL OVERWRITE EXISTING DATA**")
 
     if args.name is None:
         print("Name not provided")
@@ -430,6 +437,7 @@ def main() -> None:
         not args.no_reproject,
         args.method,
         cloud_threshold,
+        args.overwrite
     )
 
     if args.do_clouds:
@@ -453,6 +461,7 @@ def main() -> None:
             args.method,
             cloud_threshold,
             cloud_output=True,
+            overwrite=args.overwrite
         )
 
 

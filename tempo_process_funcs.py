@@ -309,8 +309,9 @@ def save_image(
     vmin: float,
     vmax: float,
     filename: Path | str,
+    overwrite=False
 ) -> None:
-    save_image_compressed_command(projected_data, cmap, vmin, vmax, filename)
+    save_image_compressed_command(projected_data, cmap, vmin, vmax, filename, overwrite = overwrite)
 
 
 def save_image_compressed_buffer(
@@ -351,12 +352,15 @@ def save_image_compressed_command(
     compression_filter: int = 4,
     compression_level: int = 9,
     compression_strategy: int = 1,
+    overwrite=False
 ) -> None:
     logger.debug(f"Saving image to: {filename}")
 
-    if Path(filename).exists():
+    if (not overwrite) and Path(filename).exists():
         logger.debug(f"File {filename} already exists. Skipping creation.")
     else:
+        if Path(filename).exists() and overwrite:
+            logger.info(f"WARNING: Overwrote file {filename}")
         mimg.imsave(
             fname=filename,
             arr=projected_data,

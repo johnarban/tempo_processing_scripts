@@ -46,7 +46,7 @@ def create_directory_structure(base_dir: Path, date: str) -> Path:
     for subdir in subdirs:
         subdir_path = day_dir / subdir
         if not subdir_path.exists():
-            print(f"Created directory {subdir_path}")
+            # print(f"Created directory {subdir_path}")
             if RUN:
                 subdir_path.mkdir(parents=True, exist_ok=False)
     
@@ -67,7 +67,7 @@ def move_files_to_day_directory(base_dir: Path, in_dirs: list[Path], file_patter
                 if not new_path.exists():
                     # check the directory exists
                     if new_path.parent.exists():
-                        print(f"Moving {file_path} to {new_path}")
+                        # print(f"Moving {file_path} to {new_path}")
                         if RUN:
                             shutil.move(str(file_path), str(new_path))
                             count += 1

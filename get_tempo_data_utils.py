@@ -193,9 +193,10 @@ def run_command(command: list[str],
             logger.error(f"Error running command: {e}")
             subprocess.run(["pwd"], cwd=cwd, check=True)
             sys.exit(1)
-        except:
+        except Exception as e:
+            logger.error(f"Error running command: {e}")
             subprocess.run(["pwd"], cwd=cwd, check=True)
-            subprocess.run(["python", "./test.py"], cwd=cwd, check=True)
+            # subprocess.run(["python", "./test.py"], cwd=cwd, check=True)
             sys.exit(1)
 
 def make_absolute(path: str | Path, root_dir: Path) -> Path:
